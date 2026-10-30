@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+runs/
+
+# T2: snapshot of a private repository, never published. make_fixture.py rebuilds it.
+tasks/T2-archi-summary/fixture/*
+!tasks/T2-archi-summary/fixture/.gitkeep

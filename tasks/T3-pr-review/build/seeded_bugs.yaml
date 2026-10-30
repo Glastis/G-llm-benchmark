@@ -1,0 +1,95 @@
+# The 7 bugs seeded in the T3 pull request (PLAN §4 T3). Never visible to the agent.
+#
+# The answer key for comparing the reviews by hand. `anchor` is a unique piece of code in the file
+# of the fixture, and the bug spans `span` lines after it. `keywords` are words a review that
+# describes the bug is likely to use.
+
+- id: pages-off-by-one
+  kind: off-by-one
+  file: src/search.hpp
+  anchor: "return total / per_page + 1;"
+  span: 0
+  severity: low
+  description: >-
+    Page::pages() counts one page too many when the total is a multiple of per_page (40 results at
+    20 per page give 3 pages). has_next() is then true on the real last page and the CLI offers an
+    empty next page. Use a ceiling division.
+  keywords: ['off[- ]by[- ]one', 'ceil', 'multiple', 'divisible', 'one (page )?too many', 'extra (empty )?page',
+             'empty (last |next )?page', 'round(s|ing)? up', 'per_page - 1', 'has_next']
+
+- id: reminder-email-none
+  kind: null
+  file: src/notify.cpp
+  anchor: "const std::string address = lower(trim(*member.email));"
+  span: 0
+  severity: high
+  description: >-
+    members.email is nullable (Member::email is a std::optional) and the old send_reminders skipped
+    members without an address. Dereferencing an empty optional is undefined behaviour: in
+    practice the worker thread crashes, and the whole process with it.
+  keywords: ['nullopt', 'null', 'nullable', 'optional', 'no (e-?mail|address)', 'without (an )?(e-?mail|address)',
+             'missing (e-?mail|address)', 'undefined behaviou?r', 'crash', 'segfault', 'has_value', 'empty']
+
+- id: reminded-race
+  kind: race condition
+  file: src/notify.cpp
+  anchor: "if (reminded_.contains(loan->id)) {"
+  span: 4
+  severity: medium
+  description: >-
+    reminded_ is read and written by every worker without mutex_: a data race on a std::set
+    (undefined behaviour, the tree can be corrupted), and a check-then-act, so two workers that take
+    two queued copies of the same loan both send the reminder. The check and the insert must happen
+    atomically under the mutex (reserve the id before sending).
+  keywords: ['race', 'lock', 'mutex', 'thread', 'concurren', 'atomic', 'duplicate', 'twice', 'check[- ]then',
+             'synchroni', 'toctou', 'same loan', 'data race']
+
+- id: sort-injection
+  kind: injection
+  file: src/search.cpp
+  anchor: "const std::string order = \" ORDER BY \" + sort + \" COLLATE NOCASE, id\";"
+  span: 0
+  severity: critical
+  description: >-
+    The sort key is concatenated into the SQL and the CLI's --sort is free text: SQL injection
+    (ORDER BY with a subquery leaks data from any table). Validate sort against SORT_KEYS.
+  keywords: ['inject', 'sanitiz', 'whitelist', 'allow[- ]?list', 'validat', 'concatenat', 'untrusted', 'sort_keys',
+             'arbitrary sql', 'user[- ]controlled', 'unsanitized']
+
+- id: mail-error-swallowed
+  kind: swallowed error
+  file: src/notify.cpp
+  anchor: "} catch (const MailError&) {"
+  span: 1
+  severity: medium
+  description: >-
+    A failed send is silently ignored: nothing is logged, the reminder still counts in sent_, and
+    the loan is added to reminded_ so it is never retried. Count or report the failure and do not
+    mark the loan as reminded.
+  keywords: ['swallow', 'silent', 'ignor', 'empty catch', 'lost', 'logg', 'retr', 'counted', 'count(s|ed)? as sent',
+             'marked', 'never (re)?sent', 'hides?', 'suppress']
+
+- id: overdue-report-n-plus-one
+  kind: N+1
+  file: src/reports.cpp
+  anchor: "const Member member = repo.get_member(loan.member_id);"
+  span: 1
+  severity: low
+  description: >-
+    overdue_report runs two queries per overdue loan (get_member, get_book): N+1 queries. A single
+    JOIN, like Repository::loan_details does, returns everything at once.
+  keywords: ['n ?\+ ?1', 'per (overdue )?loan', 'query per', 'queries', 'join', 'round[- ]?trip', 'batch',
+             'each loan', 'loop']
+
+- id: negative-fine
+  kind: logic (missing clamp)
+  file: src/loans.cpp
+  anchor: "const int days_late = days_between(loan.due, *loan.returned) - settings_.grace_days;"
+  span: 1
+  severity: high
+  description: >-
+    days_late is negative for any return before due + grace_days, so the fine becomes negative (a
+    credit): borrowing and returning the same day gives -5.75. The old code clamped through
+    days_overdue. Use std::max(0, …). The PR loosened the CLI test that would have shown it.
+  keywords: ['negative', 'early', 'before (the )?due', 'max\(0', 'clamp', 'credit', 'refund', 'below zero',
+             'less than zero', 'within the grace']

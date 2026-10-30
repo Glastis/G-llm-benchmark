@@ -1,0 +1,9 @@
+# Minimal smoke-test task (ARCHITECTURE §9): checks the whole chain at the lowest cost.
+# Outside the campaign: it is only loaded with --tasks-dir tasks/smoke.
+
+id: hello
+title: Write a hello.txt file
+timeout_min: 5
+prompt: prompt.md
+fixture: fixture
+deliverables: [hello.txt]

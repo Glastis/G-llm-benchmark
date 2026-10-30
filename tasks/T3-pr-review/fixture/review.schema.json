@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pull request review",
+  "type": "object",
+  "required": ["comments"],
+  "additionalProperties": false,
+  "properties": {
+    "summary": {"type": "string", "description": "optional overall assessment, a few sentences"},
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "severity", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "file": {"type": "string", "description": "path relative to the repository root, e.g. src/loans.cpp"},
+          "line": {"type": "integer", "minimum": 1, "description": "line number in the file as it is in the workspace (after the pull request)"},
+          "severity": {"enum": ["low", "medium", "high", "critical"]},
+          "description": {"type": "string", "minLength": 1, "description": "what is wrong, why it matters, and how to fix it"}
+        }
+      }
+    }
+  }
+}

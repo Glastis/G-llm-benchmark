@@ -1,0 +1,14 @@
+# Elevator in the middle, calls on both sides and in both directions.
+floors 15
+elevators 1
+capacity 8
+travel 1
+door 2
+start 7
+passenger 1 0 4 12
+passenger 2 0 10 3
+passenger 3 1 9 13
+passenger 4 2 2 0
+passenger 5 2 12 6
+passenger 6 6 7 1
+passenger 7 6 7 14

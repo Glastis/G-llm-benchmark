@@ -1,0 +1,12 @@
+# Passengers arriving at a floor while the elevator stands there with its doors open.
+floors 10
+elevators 1
+capacity 5
+travel 2
+door 6
+passenger 1 0 0 5
+passenger 2 3 0 4
+passenger 3 5 0 9
+passenger 4 6 0 2
+passenger 5 14 5 1
+passenger 6 18 5 8

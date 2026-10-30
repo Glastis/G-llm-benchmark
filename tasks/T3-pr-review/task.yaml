@@ -1,0 +1,9 @@
+# T3 — Review of a trapped PR on a small C++ repository (PLAN §4, decisions §10.9 and §10.21).
+
+id: T3-pr-review
+title: Review of a trapped PR on a small C++ repository
+timeout_min: 300
+prompt: prompt.md
+fixture: fixture
+deliverables: [review.json]
+grader: grader/grade.py   # matches the comments with build/seeded_bugs.yaml (§10.28)

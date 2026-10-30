@@ -1,0 +1,9 @@
+# Smoke test #5 (ARCHITECTURE §9): one long C++ file, to compare Strata's 4,096 and 16,384 output caps
+# (truncated responses, success, time, share of the cap taken by thinking).
+
+id: big-file
+title: Write one C++20 file of at least 500 lines with self-tests
+timeout_min: 30
+prompt: prompt.md
+fixture: fixture
+deliverables: [sim.cpp]

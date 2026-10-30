@@ -1,0 +1,1480 @@
+11 3 8 up out=- in=143
+19 0 28 down out=- in=680
+23 3 15 up out=143 in=-
+37 1 4 up out=- in=1372
+45 0 7 down out=680 in=-
+45 1 7 up out=- in=221
+59 0 3 up out=- in=256
+59 2 25 down out=- in=723
+60 1 17 up out=221 in=-
+66 3 12 up out=- in=293
+69 0 8 up out=256 in=-
+74 3 15 up out=293 in=-
+75 1 27 up out=1372 in=-
+81 1 28 down out=- in=1273
+82 2 7 down out=723 in=-
+89 2 5 up out=- in=683
+111 2 22 up out=- in=1238
+113 1 1 down out=1273 in=-
+113 3 23 down out=- in=1016
+116 0 5 down out=- in=1036
+117 2 23 up out=683 in=-
+118 1 1 up out=- in=242
+124 0 2 down out=1036 in=-
+126 2 27 up out=1238 in=-
+129 3 12 down out=1016 in=-
+133 2 25 down out=- in=1175
+151 1 29 up out=242 in=-
+153 3 13 up out=- in=861
+154 2 9 down out=1175 in=-
+164 3 19 up out=861 in=-
+173 1 24 down out=- in=468
+185 2 13 up out=- in=98
+199 2 22 up out=98 in=-
+202 1 0 down out=468 in=-
+206 3 11 up out=- in=1099
+221 3 21 up out=1099 in=-
+222 2 25 down out=- in=699
+237 0 13 down out=- in=426
+239 1 3 down out=- in=1097
+242 2 10 down out=699 in=-
+245 3 24 down out=- in=1223
+246 1 1 down out=1097 in=-
+248 0 7 down out=426 in=-
+249 2 8 up out=- in=1377
+253 1 3 up out=- in=442
+259 2 13 up out=1377 in=-
+262 0 11 down out=- in=120
+263 3 11 down out=1223 in=-
+266 1 11 up out=442 in=-
+274 1 8 down out=- in=681
+276 0 2 down out=120 in=-
+282 1 5 down out=681 in=-
+287 0 2 up out=- in=781
+291 3 7 up out=- in=863
+298 0 8 up out=781 in=-
+299 1 2 up out=- in=876
+303 2 29 down out=- in=1357
+306 0 7 up out=- in=854
+310 3 21 up out=863 in=-
+311 2 26 down out=- in=190
+315 3 21 down out=- in=1379
+318 2 24 down out=- in=743
+323 1 21 up out=876 in=-
+324 2 23 down out=1357 in=-
+329 3 12 down out=- in=991
+331 0 27 up out=854 in=-
+334 1 27 down out=- in=1078
+336 3 10 down out=1379 in=-
+337 2 15 down out=190 in=-
+342 1 24 down out=1078 in=-
+344 3 7 down out=991 in=-
+350 1 21 down out=- in=1386
+351 3 9 up out=- in=1460
+356 2 1 down out=743 in=-
+358 1 18 down out=1386 in=-
+359 3 12 up out=- in=1331
+361 0 22 down out=- in=1439
+366 3 14 up out=1460 in=-
+372 3 15 up out=- in=1397
+374 1 7 up out=- in=1143
+378 0 10 down out=1439 in=-
+382 3 20 up out=1397 in=-
+383 2 1 up out=- in=472
+393 1 21 up out=1143 in=-
+394 3 27 up out=1331 in=-
+395 0 22 up out=- in=1289
+395 2 8 up out=- in=868
+401 0 23 up out=1289 in=-
+402 3 24 down out=- in=706
+414 2 22 up out=868 in=-
+414 3 17 down out=706 in=-
+416 0 23 down out=- in=972
+422 3 14 down out=- in=888
+426 2 29 up out=472 in=-
+428 3 13 down out=- in=297
+435 3 11 down out=297 in=-
+438 0 6 down out=972 in=-
+442 1 12 up out=- in=1250
+449 0 1 up out=- in=616
+450 1 15 up out=- in=31
+450 3 1 down out=888 in=-
+455 2 5 down out=- in=792
+456 1 16 up out=1250 in=-
+458 3 4 up out=- in=1094
+462 2 3 down out=792 in=-
+464 1 19 up out=31 in=-
+465 3 6 up out=- in=542
+478 0 25 up out=616 in=-
+478 1 28 down out=- in=133
+483 2 19 down out=- in=1160
+484 3 20 up out=542 in=-
+485 1 26 down out=- in=1173,577
+490 3 21 up out=1094 in=-
+492 1 24 down out=577 in=-
+493 0 29 down out=- in=586
+497 2 10 down out=1160 in=-
+499 1 22 down out=133 in=-
+504 2 11 up out=- in=16
+506 3 10 down out=- in=747
+511 1 15 down out=1173 in=-
+517 3 4 down out=747 in=-
+519 0 8 down out=586 in=-
+522 3 4 up out=- in=1068
+525 1 6 up out=- in=543
+526 2 28 up out=16 in=-
+530 3 7 up out=1068 in=-
+533 2 26 down out=- in=280
+537 1 13 up out=543 in=-
+540 3 12 up out=- in=887
+541 2 23 down out=280 in=-
+545 0 1 up out=- in=153
+547 3 14 up out=887 in=-
+548 2 21 down out=- in=145
+553 1 24 up out=- in=1203
+553 3 14 up out=- in=1079
+563 1 29 up out=1203 in=-
+564 3 20 up out=- in=932
+566 0 17 up out=153 in=-
+568 2 6 down out=145 in=-
+573 0 19 down out=- in=422
+573 3 24 up out=932,1079 in=-
+580 3 22 down out=- in=1128
+581 2 2 up out=- in=267
+590 2 6 up out=267 in=-
+590 3 17 down out=- in=1053
+594 0 3 down out=422 in=-
+603 0 7 up out=- in=239
+608 3 4 down out=1053 in=-
+610 1 28 down out=- in=945
+614 3 3 down out=1128 in=-
+620 0 19 up out=- in=137
+626 0 20 up out=137 in=-
+628 2 7 up out=- in=814
+638 0 27 up out=239 in=-
+641 1 2 down out=945 in=-
+644 0 28 down out=- in=431,650
+644 3 5 up out=- in=755
+646 1 2 up out=- in=1428
+650 0 27 down out=431 in=-
+650 2 24 up out=814 in=-
+654 3 10 up out=- in=235
+664 2 15 down out=- in=1276
+666 1 17 up out=1428 in=-
+667 0 15 down out=- in=1412
+670 2 14 down out=1276 in=-
+670 3 21 up out=235 in=-
+681 0 6 down out=650 in=-
+681 3 27 up out=755 in=-
+682 1 22 down out=- in=1197
+685 2 4 up out=- in=1064
+686 3 27 down out=- in=1071
+690 0 2 down out=1412 in=-
+695 1 14 down out=1197 in=-
+696 0 1 up out=- in=1192
+696 3 22 down out=- in=34
+698 2 12 up out=- in=1461
+704 2 13 up out=1064 in=-
+706 0 6 up out=1192 in=-
+706 3 17 down out=34 in=1344
+714 1 0 up out=- in=413
+716 0 11 up out=- in=179
+720 2 24 up out=1461 in=-
+721 3 7 down out=1071 in=-
+724 1 5 up out=- in=649
+725 0 15 up out=179 in=-
+730 2 29 down out=- in=198
+732 3 1 down out=1344 in=-
+736 1 12 up out=413 in=-
+739 0 24 up out=- in=788
+743 2 21 down out=- in=1263
+745 0 25 up out=788 in=-
+749 1 20 up out=- in=307
+749 2 20 down out=- in=1413
+751 0 26 down out=- in=728
+758 2 16 down out=- in=808
+758 3 13 down out=- in=840
+761 1 27 up out=307 in=-
+764 0 18 down out=728 in=-
+764 3 12 down out=840 in=-
+767 1 28 up out=649 in=-
+771 0 19 up out=- in=335
+773 2 6 down out=1413 in=-
+776 1 24 down out=- in=105
+779 0 22 up out=335 in=-
+780 2 4 down out=198 in=-
+786 0 24 down out=- in=593
+786 2 3 down out=808 in=-
+787 1 18 down out=- in=510,1347
+792 0 23 down out=- in=128
+792 2 2 down out=1263 in=-
+796 1 14 down out=510 in=-
+800 2 5 up out=- in=787
+805 0 15 down out=593 in=-
+806 3 29 down out=- in=631
+807 1 8 down out=105 in=-
+807 2 7 up out=- in=224
+814 3 26 down out=- in=1278
+818 1 2 down out=1347 in=-
+820 0 5 down out=128 in=-
+820 2 15 up out=787 in=-
+824 3 21 down out=- in=233
+827 2 17 up out=224 in=-
+828 0 4 up out=- in=552
+831 3 19 down out=233 in=-
+832 1 11 up out=- in=411
+846 0 17 up out=552 in=-
+850 3 5 down out=631 in=-
+855 1 29 up out=411 in=-
+857 3 3 down out=1278 in=-
+860 1 29 down out=- in=1042
+867 1 27 down out=1042 in=-
+878 0 28 down out=- in=1269
+884 3 3 up out=- in=539
+890 0 21 down out=1269 in=-
+893 3 7 up out=539 in=-
+900 3 9 up out=- in=580
+905 0 20 up out=- in=184
+914 0 24 up out=184 in=-
+915 2 2 up out=- in=1488
+923 3 27 up out=580 in=-
+927 2 9 up out=1488 in=-
+930 0 20 up out=- in=8
+934 2 11 up out=- in=1138
+942 0 27 up out=8 in=-
+942 2 14 up out=1138 in=-
+953 2 15 down out=- in=1474
+963 0 23 up out=- in=493
+968 2 5 down out=1474 in=-
+970 0 25 up out=493 in=-
+986 0 18 up out=- in=1373
+999 2 6 up out=- in=492
+1000 0 27 up out=1373 in=-
+1017 0 21 down out=- in=875
+1018 2 20 up out=492 in=-
+1026 1 1 up out=- in=1184,1148
+1027 0 16 down out=875 in=-
+1028 2 15 down out=- in=582
+1033 1 3 up out=1184 in=-
+1035 0 19 up out=- in=374
+1036 2 12 down out=582 in=-
+1041 0 20 up out=374 in=-
+1043 2 10 down out=- in=896
+1050 2 8 down out=896 in=-
+1059 1 24 up out=1148 in=-
+1062 0 15 up out=- in=1484
+1068 2 12 up out=- in=1451
+1071 1 21 down out=- in=1167
+1075 2 14 up out=- in=978
+1077 1 20 down out=- in=983
+1080 0 28 up out=1484 in=-
+1085 1 17 down out=983 in=-
+1087 2 21 up out=978 in=-
+1091 1 16 down out=1167 in=-
+1096 2 25 up out=1451 in=-
+1100 1 12 down out=- in=450
+1116 1 1 down out=450 in=-
+1125 2 16 up out=- in=1241
+1131 1 11 up out=- in=441
+1135 2 21 up out=1241 in=-
+1142 1 17 up out=441 in=-
+1147 1 17 down out=- in=11
+1154 2 20 down out=- in=968
+1155 1 14 down out=11 in=-
+1166 2 13 down out=- in=1378
+1167 1 7 down out=- in=818
+1167 3 23 down out=- in=1354
+1172 3 23 down out=- in=204
+1173 2 11 down out=968 in=-
+1175 1 4 down out=818 in=-
+1180 3 20 down out=1354 in=-
+1181 0 25 down out=- in=58
+1183 1 7 up out=- in=540
+1186 2 3 down out=1378 in=-
+1190 1 9 up out=540 in=-
+1200 3 5 down out=204 in=-
+1202 1 16 up out=- in=1151
+1202 2 4 up out=- in=1459
+1207 0 4 down out=58 in=-
+1208 3 3 up out=- in=180
+1212 2 9 up out=1459 in=-
+1216 3 6 up out=- in=446
+1217 0 3 up out=- in=129
+1219 1 28 up out=1151 in=-
+1219 2 11 up out=- in=1149
+1223 0 4 up out=129 in=-
+1224 3 9 up out=446 in=-
+1225 1 27 down out=- in=989
+1228 2 15 up out=- in=1096,371
+1234 0 8 up out=- in=230
+1234 1 23 down out=- in=1392
+1235 2 17 up out=1096 in=-
+1240 3 20 up out=180 in=-
+1245 2 22 up out=1149 in=-
+1252 2 24 up out=371 in=-
+1256 1 6 down out=989 in=1469
+1256 3 9 down out=- in=1204
+1259 0 28 up out=230 in=-
+1262 1 5 down out=1392 in=-
+1262 3 8 down out=1204 in=-
+1269 1 3 down out=1469 in=-
+1273 3 14 up out=- in=765
+1277 1 0 up out=- in=667
+1284 1 2 up out=- in=7
+1284 2 19 down out=- in=1319
+1291 3 27 up out=765 in=-
+1293 1 6 up out=667 in=-
+1296 2 12 down out=1319 in=-
+1300 1 8 up out=7 in=-
+1303 0 19 down out=- in=1411
+1306 2 7 up out=- in=1093
+1315 1 6 up out=- in=745
+1316 0 11 down out=1411 in=-
+1320 2 16 up out=1093 in=-
+1321 1 7 up out=745 in=-
+1322 3 25 up out=- in=1045
+1325 2 16 up out=- in=87,452
+1330 3 28 up out=1045 in=-
+1333 2 19 up out=452 in=-
+1336 3 27 down out=- in=151
+1339 1 2 up out=- in=661
+1340 2 21 up out=87 in=-
+1343 0 5 up out=- in=922
+1349 1 7 up out=661 in=-
+1350 2 24 down out=- in=732
+1353 0 10 up out=- in=421
+1358 1 4 down out=- in=37
+1359 3 9 down out=151 in=-
+1365 1 2 down out=37 in=-
+1371 0 23 up out=922 in=-
+1377 2 2 down out=732 in=-
+1379 0 26 up out=421 in=-
+1388 3 6 down out=- in=809
+1396 3 3 down out=809 in=-
+1401 0 26 down out=- in=1251
+1407 0 25 down out=1251 in=-
+1415 3 3 up out=- in=408
+1421 0 16 down out=- in=1084
+1431 0 11 down out=1084 in=-
+1431 3 14 up out=408 in=-
+1441 0 16 up out=- in=1089
+1446 3 24 up out=- in=284
+1454 0 24 up out=1089 in=-
+1454 3 27 up out=284 in=-
+1457 1 6 up out=- in=19
+1462 3 24 down out=- in=1332
+1464 1 8 up out=19 in=-
+1472 0 26 down out=- in=481
+1476 2 4 up out=- in=170
+1477 1 5 up out=- in=1037
+1486 1 9 up out=1037 in=-
+1489 3 2 down out=1332 in=-
+1501 0 2 down out=481 in=-
+1504 2 27 up out=170 in=-
+1506 1 7 down out=- in=844
+1507 0 1 up out=- in=101
+1515 1 3 down out=844 in=-
+1515 2 27 down out=- in=1233
+1519 0 8 up out=101 in=-
+1530 2 17 down out=1233 in=-
+1544 0 28 down out=- in=409
+1545 3 2 up out=- in=1150
+1559 0 18 down out=- in=558
+1565 0 17 down out=409 in=-
+1568 2 26 up out=- in=402
+1570 1 7 up out=- in=883
+1571 3 23 up out=1150 in=-
+1574 0 13 down out=558 in=-
+1576 2 29 up out=402 in=-
+1580 1 12 up out=883 in=-
+1583 3 16 down out=- in=898
+1589 2 21 down out=- in=217
+1591 0 1 up out=- in=1134
+1591 3 13 down out=898 in=-
+1601 0 6 up out=- in=857
+1604 2 11 down out=217 in=-
+1609 1 27 down out=- in=790
+1611 0 11 up out=1134 in=-
+1615 1 26 down out=- in=23
+1619 2 21 up out=- in=194
+1623 1 23 down out=- in=914
+1624 0 19 up out=857 in=-
+1624 3 2 up out=- in=345
+1629 1 22 down out=23 in=-
+1630 3 3 up out=- in=191
+1631 2 28 up out=194 in=-
+1635 1 21 down out=914 in=-
+1636 2 28 down out=- in=261
+1639 3 7 up out=345 in=-
+1645 1 16 down out=790 in=-
+1645 3 8 up out=191 in=-
+1656 2 13 down out=261 in=-
+1660 3 10 up out=- in=99
+1664 0 18 down out=- in=1376
+1664 2 11 up out=- in=856
+1680 0 7 down out=1376 in=-
+1681 3 26 up out=99 in=-
+1685 2 27 up out=856 in=-
+1687 3 27 up out=- in=387
+1688 0 4 up out=- in=772
+1689 1 10 down out=- in=688
+1693 3 28 up out=387 in=-
+1698 0 9 up out=772 in=-
+1698 2 27 up out=- in=1321
+1699 1 5 down out=688 in=-
+1704 2 28 up out=1321 in=-
+1708 0 14 up out=- in=82
+1715 0 16 up out=- in=833
+1724 0 20 up out=833 in=-
+1737 1 16 down out=- in=504
+1738 0 29 up out=82 in=-
+1747 1 11 down out=504 in=-
+1756 1 8 down out=- in=1316
+1764 1 5 down out=- in=882
+1765 2 13 up out=- in=869
+1771 2 14 up out=- in=537
+1772 1 2 down out=882,1316 in=-
+1778 2 16 up out=869 in=287
+1788 2 21 up out=537 in=-
+1797 2 25 up out=287 in=-
+1803 2 25 down out=- in=1494
+1809 1 12 up out=- in=573
+1811 3 17 down out=- in=871
+1819 1 17 up out=573 in=-
+1826 0 26 down out=- in=253
+1831 2 2 down out=1494 in=-
+1831 3 2 down out=871 in=-
+1839 3 5 up out=- in=608
+1843 0 14 down out=253 in=-
+1846 2 12 up out=- in=424
+1851 0 11 up out=- in=141
+1856 1 0 up out=- in=1145
+1857 3 18 up out=608 in=-
+1859 0 14 up out=- in=998
+1865 2 26 up out=424 in=-
+1866 1 5 up out=- in=1272
+1868 0 18 up out=141 in=-
+1873 2 23 down out=- in=719
+1880 0 25 up out=- in=1067
+1881 1 15 up out=1145 in=-
+1888 0 28 up out=998 in=-
+1894 0 29 up out=1067 in=-
+1894 2 7 down out=719 in=-
+1899 1 28 up out=1272 in=-
+1901 2 5 up out=- in=771
+1907 2 6 up out=771 in=-
+1913 2 7 up out=- in=1282
+1922 3 1 up out=- in=327
+1924 2 13 up out=1282 in=-
+1931 2 15 down out=- in=1320
+1936 3 10 up out=- in=724
+1940 2 11 down out=1320 in=-
+1955 1 28 up out=- in=548
+1956 3 25 up out=327 in=-
+1961 0 24 down out=- in=766
+1961 1 29 up out=548 in=-
+1965 3 29 up out=724 in=-
+1971 0 19 down out=- in=931
+1972 2 19 down out=- in=907
+1977 0 18 down out=931 in=201
+1978 2 18 down out=- in=124
+1985 3 14 down out=- in=899
+1986 2 15 down out=907 in=-
+1987 0 13 down out=201 in=-
+1993 2 13 down out=124 in=-
+1999 1 26 down out=- in=21
+2004 3 0 down out=899 in=-
+2005 0 0 down out=766 in=-
+2005 1 25 down out=21 in=-
+2008 2 8 up out=- in=175
+2011 1 24 down out=- in=138
+2022 1 18 down out=- in=363
+2025 2 20 up out=175 in=-
+2030 1 15 down out=363 in=-
+2035 0 2 up out=- in=947
+2048 0 10 up out=947 in=-
+2049 1 1 down out=138 in=-
+2050 3 2 up out=- in=154
+2054 0 11 up out=- in=1468
+2056 2 29 down out=- in=1123
+2072 3 19 up out=154 in=-
+2074 1 21 up out=- in=763
+2076 0 28 up out=1468 in=-
+2082 0 29 down out=- in=1295
+2085 1 27 up out=763 in=-
+2087 2 3 down out=1123 in=-
+2092 1 29 down out=- in=1325
+2097 2 8 up out=- in=169
+2104 2 10 up out=- in=338
+2111 2 12 up out=- in=430
+2112 0 4 down out=1295 in=-
+2112 1 14 down out=1325 in=-
+2121 2 17 up out=338 in=-
+2132 1 17 up out=- in=1129
+2136 3 27 down out=- in=796
+2137 2 28 up out=169,430 in=-
+2141 0 12 up out=- in=1178
+2144 1 24 up out=1129 in=-
+2152 1 27 down out=- in=470
+2158 2 12 down out=- in=96
+2160 0 26 up out=1178 in=-
+2162 3 6 down out=796 in=-
+2165 0 26 down out=- in=590,1380
+2168 1 16 down out=470 in=-
+2170 2 5 down out=96 in=-
+2170 3 9 up out=- in=1039
+2183 3 17 up out=1039 in=-
+2184 0 12 down out=590 in=-
+2184 1 13 up out=- in=405
+2193 2 4 up out=- in=685
+2194 0 7 down out=- in=202
+2198 3 27 down out=- in=994
+2200 0 6 down out=1380 in=-
+2202 2 8 up out=685 in=-
+2205 1 29 up out=405 in=-
+2206 3 24 down out=- in=1006
+2208 0 3 down out=202 in=-
+2212 3 23 down out=1006 in=-
+2218 3 22 down out=994 in=-
+2219 0 6 up out=- in=65
+2220 1 19 down out=- in=219
+2220 2 17 up out=- in=1323
+2229 0 11 up out=- in=626
+2231 3 21 down out=- in=195
+2233 1 11 down out=219 in=-
+2235 2 27 up out=1323 in=-
+2240 3 17 down out=195 in=-
+2244 0 21 up out=626 in=-
+2248 1 1 up out=- in=274,207
+2249 2 26 down out=- in=601
+2250 3 12 up out=- in=1085
+2255 0 27 up out=65 in=-
+2257 1 5 up out=- in=1119
+2260 3 17 up out=- in=1012
+2263 1 6 up out=- in=756
+2265 2 15 down out=601 in=-
+2269 1 7 up out=207 in=-
+2273 3 25 up out=1012 in=-
+2279 3 26 up out=1085 in=-
+2284 1 17 up out=756 in=-
+2286 2 11 down out=- in=553
+2288 3 22 down out=- in=1108
+2294 3 21 down out=- in=1032
+2298 1 26 up out=1119 in=-
+2301 3 19 down out=1032 in=-
+2302 2 0 down out=553 in=-
+2305 1 28 up out=274 in=-
+2307 2 0 up out=- in=618
+2313 0 20 down out=- in=672
+2315 2 3 up out=- in=645
+2318 3 7 down out=- in=1015
+2322 2 5 up out=618 in=-
+2325 3 5 down out=- in=760
+2326 0 12 down out=672 in=1482
+2331 3 4 down out=1015 in=-
+2333 0 10 down out=1482 in=-
+2339 3 1 down out=760,1108 in=-
+2347 2 25 up out=645 in=-
+2350 3 7 up out=- in=46
+2358 2 24 down out=- in=116
+2361 0 1 up out=- in=584
+2365 3 17 up out=46 in=-
+2373 2 14 down out=116 in=-
+2376 0 11 up out=584 in=-
+2381 0 11 up out=- in=1230
+2400 0 25 up out=1230 in=-
+2400 3 17 down out=- in=1446
+2402 2 5 down out=- in=1125
+2412 2 0 down out=1125 in=-
+2421 3 1 down out=1446 in=-
+2424 2 7 up out=- in=187
+2426 0 25 down out=- in=400
+2434 3 1 up out=- in=171
+2438 0 18 down out=400 in=-
+2446 0 15 down out=- in=864
+2448 2 26 up out=187 in=-
+2461 0 5 down out=864 in=-
+2461 3 23 up out=171 in=-
+2464 2 15 down out=- in=193
+2468 0 3 up out=- in=946
+2474 3 22 down out=- in=690
+2475 2 9 down out=- in=339
+2481 3 20 down out=- in=308
+2487 1 26 down out=- in=793
+2487 2 2 down out=339 in=-
+2494 0 24 up out=946 in=-
+2494 2 0 down out=193 in=-
+2496 3 10 down out=690 in=-
+2499 2 0 up out=- in=1214
+2502 3 9 down out=308 in=-
+2507 0 21 down out=- in=829
+2510 1 8 down out=793 in=-
+2512 2 8 up out=1214 in=-
+2516 0 17 down out=829 in=-
+2524 3 25 down out=- in=208
+2529 0 18 down out=- in=183
+2530 3 24 down out=208 in=-
+2541 0 11 down out=183 in=-
+2562 1 7 up out=- in=935
+2574 3 23 down out=- in=2
+2587 1 27 up out=935 in=-
+2593 2 1 up out=- in=615
+2594 0 10 down out=- in=295
+2598 2 1 up out=- in=641
+2600 3 2 down out=2 in=-
+2604 1 22 down out=- in=1489
+2605 2 3 up out=615 in=-
+2608 0 1 down out=295 in=-
+2615 1 16 down out=- in=85
+2619 2 12 up out=- in=427
+2621 1 15 down out=85 in=1026
+2622 3 4 up out=- in=139
+2626 2 14 up out=641 in=-
+2631 1 10 down out=1489 in=-
+2639 1 7 down out=1026 in=-
+2643 3 20 up out=139 in=-
+2644 2 27 up out=427 in=-
+2649 2 27 down out=- in=1324
+2654 1 17 up out=- in=881
+2658 3 15 down out=- in=524
+2666 1 24 up out=881 in=-
+2667 2 14 down out=1324 in=-
+2670 3 8 down out=524 in=-
+2671 0 9 down out=- in=786
+2676 1 29 down out=- in=333
+2680 3 13 up out=- in=813
+2684 0 1 down out=786 in=-
+2691 3 19 up out=813 in=-
+2703 2 13 up out=- in=1318
+2706 1 4 down out=333 in=-
+2709 2 14 up out=- in=1441
+2715 3 27 down out=- in=1487
+2716 2 16 up out=1441 in=-
+2723 3 24 down out=- in=764
+2729 2 24 up out=1318 in=-
+2729 3 23 down out=- in=1396
+2736 3 21 down out=764,1487 in=-
+2737 2 27 down out=- in=634
+2740 1 15 down out=- in=460
+2753 1 7 down out=460 in=-
+2755 2 14 down out=634 in=-
+2760 3 2 down out=1396 in=-
+2771 1 18 up out=- in=1248
+2773 0 17 down out=- in=513
+2777 3 5 down out=- in=1247
+2782 1 24 up out=1248 in=-
+2785 3 2 down out=1247 in=-
+2789 1 26 down out=- in=1002
+2795 0 0 down out=513 in=-
+2795 2 21 up out=- in=1227
+2796 1 24 down out=1002 in=-
+2800 0 0 up out=- in=1361
+2805 2 26 up out=1227 in=-
+2809 1 25 down out=- in=944
+2817 0 12 up out=1361 in=-
+2828 0 16 up out=- in=1404
+2828 2 23 down out=- in=1330
+2837 2 19 down out=1330 in=-
+2839 1 0 down out=944 in=-
+2842 2 19 down out=- in=107
+2843 3 10 up out=- in=25
+2846 0 29 up out=1404 in=-
+2849 2 17 down out=- in=550
+2854 1 9 up out=- in=838
+2855 2 16 down out=550 in=-
+2856 0 24 down out=- in=212
+2857 3 19 up out=25 in=-
+2865 1 15 up out=838 in=-
+2865 2 11 down out=107 in=-
+2867 0 18 down out=- in=894
+2868 3 25 down out=- in=965
+2872 1 13 down out=- in=0
+2873 0 17 down out=212 in=-
+2873 3 25 down out=- in=525
+2878 3 25 down out=- in=494
+2882 1 8 down out=0 in=-
+2884 0 11 down out=894 in=-
+2884 2 3 up out=- in=227
+2893 0 11 down out=- in=810
+2894 3 14 down out=965 in=-
+2902 0 7 down out=810 in=-
+2906 2 20 up out=227 in=-
+2907 3 6 down out=494 in=-
+2913 1 9 up out=- in=647
+2918 3 0 down out=525 in=-
+2930 1 21 up out=647 in=-
+2943 0 7 up out=- in=1104
+2951 0 10 up out=1104 in=-
+2953 1 29 down out=- in=319
+2954 2 18 up out=- in=966
+2956 3 1 up out=- in=1304
+2960 2 19 up out=966 in=-
+2969 3 9 up out=1304 in=-
+2978 1 9 down out=319 in=-
+2982 2 29 down out=- in=1141
+2990 2 26 down out=- in=670
+2999 2 22 down out=- in=4
+3005 2 21 down out=1141 in=-
+3008 1 4 up out=- in=702
+3012 3 13 down out=- in=1493
+3014 0 27 down out=- in=990
+3018 3 12 down out=- in=324
+3019 1 10 up out=702 in=-
+3020 2 11 down out=670 in=-
+3024 3 11 down out=324 in=-
+3026 2 10 down out=4 in=-
+3035 3 5 down out=1493 in=-
+3039 0 7 down out=990 in=-
+3046 1 22 up out=- in=717
+3049 3 3 up out=- in=877
+3055 0 18 up out=- in=735
+3055 1 26 up out=717 in=-
+3061 2 1 up out=- in=530
+3066 0 24 up out=735 in=-
+3066 3 15 up out=877 in=-
+3067 2 2 up out=530 in=-
+3083 1 4 up out=- in=1048
+3083 3 13 down out=- in=940
+3087 2 3 up out=- in=277
+3093 2 4 up out=277 in=-
+3093 3 8 down out=940 in=-
+3104 1 20 up out=1048 in=-
+3106 2 0 up out=- in=182
+3109 3 9 up out=- in=587
+3115 2 4 up out=182 in=-
+3115 3 10 up out=- in=546
+3120 0 25 down out=- in=974
+3125 3 15 up out=587 in=-
+3134 3 19 up out=546 in=-
+3140 0 10 down out=974 in=-
+3141 1 28 down out=- in=1028
+3145 3 15 down out=- in=316
+3148 2 11 down out=- in=959
+3151 3 14 down out=316 in=-
+3154 0 16 down out=- in=853
+3159 3 13 up out=- in=779
+3163 2 1 down out=959 in=-
+3164 1 10 down out=1028 in=-
+3165 0 10 down out=853 in=-
+3170 2 3 up out=- in=358
+3172 3 21 up out=779 in=-
+3176 0 10 down out=- in=638
+3178 1 19 up out=- in=605
+3178 2 6 up out=- in=900
+3180 3 18 down out=- in=144
+3187 3 16 down out=- in=123
+3188 0 3 down out=- in=609
+3190 1 26 up out=605 in=-
+3192 2 15 up out=900 in=-
+3194 0 2 down out=638 in=-
+3195 3 13 down out=123 in=-
+3200 0 1 down out=609 in=-
+3200 2 18 up out=358 in=-
+3205 3 8 down out=144 in=-
+3215 1 11 up out=- in=299
+3216 2 29 down out=- in=1340
+3217 3 8 up out=- in=806
+3223 2 27 down out=- in=1242
+3224 1 15 up out=299 in=-
+3226 3 12 up out=- in=962
+3228 2 27 down out=- in=1337
+3232 0 0 up out=- in=928
+3235 1 21 up out=- in=1466
+3236 3 17 up out=806 in=-
+3237 2 23 down out=- in=637
+3243 1 24 up out=1466 in=-
+3244 2 21 down out=1340 in=-
+3244 3 20 up out=962 in=-
+3251 1 21 down out=- in=265
+3252 2 18 down out=- in=1436
+3253 0 16 up out=928 in=-
+3258 2 17 down out=- in=1196
+3261 1 16 down out=- in=1365
+3268 2 12 down out=1337 in=-
+3270 0 28 down out=- in=659
+3270 1 12 down out=265 in=-
+3272 3 2 up out=- in=892
+3275 2 10 down out=1436 in=-
+3282 2 8 down out=1242 in=-
+3283 1 4 down out=1365 in=-
+3286 0 17 down out=- in=602,1034
+3289 2 6 down out=1196 in=-
+3291 1 1 up out=- in=356
+3297 1 2 up out=- in=949
+3300 2 0 down out=637 in=-
+3301 0 7 down out=1034 in=-
+3303 3 28 up out=892 in=-
+3307 1 7 up out=949 in=-
+3309 0 4 down out=602 in=-
+3315 0 3 down out=659 in=-
+3316 2 7 up out=- in=1434
+3318 1 13 up out=356 in=-
+3322 3 14 down out=- in=1425
+3326 0 9 up out=- in=1195
+3327 1 17 up out=- in=1374
+3333 0 11 up out=1195 in=-
+3333 2 19 up out=1434 in=-
+3333 3 8 down out=1425 in=-
+3334 1 19 up out=1374 in=-
+3340 1 18 down out=- in=1153
+3349 2 8 down out=- in=1181
+3352 0 25 down out=- in=385
+3353 3 3 up out=- in=305
+3356 2 6 down out=- in=167
+3358 1 5 down out=1153 in=-
+3360 0 22 down out=- in=1327
+3363 2 4 down out=167 in=-
+3364 3 9 up out=305 in=-
+3367 0 20 down out=- in=1040
+3371 2 1 down out=1181 in=-
+3373 0 19 down out=1327 in=-
+3379 0 18 down out=- in=1308
+3380 1 12 up out=- in=22
+3380 2 5 up out=- in=1185
+3380 3 20 up out=- in=1190
+3386 0 16 down out=1308 in=-
+3390 2 10 up out=- in=744
+3393 3 28 up out=1190 in=-
+3398 3 28 down out=- in=622
+3400 1 27 up out=22 in=-
+3401 0 6 down out=385 in=-
+3404 3 27 down out=- in=748
+3407 2 22 up out=744 in=-
+3411 0 1 down out=1040 in=-
+3413 1 19 down out=- in=1043
+3414 2 24 up out=1185 in=-
+3416 3 20 down out=748 in=-
+3417 0 2 up out=- in=469
+3423 0 3 up out=- in=805
+3424 1 13 down out=1043 in=-
+3424 2 29 down out=- in=785
+3430 1 12 down out=- in=48
+3430 2 28 down out=785 in=-
+3435 0 10 up out=805 in=-
+3438 2 25 down out=- in=106
+3440 3 1 down out=622 in=-
+3441 1 6 down out=48 in=-
+3444 2 24 down out=- in=1186
+3450 0 20 up out=469 in=-
+3450 2 23 down out=- in=1342
+3458 2 20 down out=106 in=-
+3463 0 28 down out=- in=784
+3472 1 11 down out=- in=610
+3478 2 5 down out=1186 in=-
+3483 0 13 down out=784 in=-
+3488 1 0 down out=610 in=-
+3488 2 0 down out=1342 in=-
+3500 3 20 down out=- in=1075
+3503 0 1 up out=- in=1056
+3505 2 12 up out=- in=716
+3509 3 16 down out=1075 in=-
+3510 0 3 up out=- in=873
+3516 0 4 up out=1056 in=-
+3516 1 1 down out=- in=263
+3518 2 20 up out=716 in=-
+3521 3 16 down out=- in=1449
+3522 1 0 down out=263 in=-
+3526 3 16 down out=- in=331
+3528 2 15 down out=- in=310
+3534 2 14 down out=310 in=-
+3541 2 15 down out=- in=1021
+3542 0 25 up out=873 in=-
+3542 3 5 down out=331 in=-
+3550 0 28 down out=- in=870
+3550 2 11 down out=1021 in=-
+3550 3 2 down out=1449 in=-
+3555 3 2 up out=- in=676
+3560 0 23 down out=- in=1052
+3568 2 10 down out=- in=258
+3572 0 16 down out=870 in=-
+3575 1 4 up out=- in=357
+3580 2 3 down out=258 in=-
+3585 3 27 up out=676 in=-
+3590 0 3 down out=1052 in=-
+3596 3 21 down out=- in=115
+3597 1 21 up out=357 in=-
+3603 3 19 down out=- in=369
+3618 0 3 up out=- in=903
+3618 3 9 down out=369 in=-
+3624 3 8 down out=115 in=-
+3626 0 6 up out=- in=355
+3628 1 13 down out=- in=845
+3632 2 0 up out=- in=199
+3635 1 11 down out=845 in=-
+3638 2 1 up out=199 in=-
+3642 0 17 up out=355,903 in=-
+3652 0 22 down out=- in=502
+3654 3 8 up out=- in=181
+3660 0 19 down out=- in=1146
+3666 1 8 up out=- in=612
+3667 0 17 down out=1146 in=-
+3669 3 18 up out=181 in=-
+3685 0 4 down out=502 in=-
+3685 1 22 up out=612 in=-
+3694 3 17 up out=- in=1455
+3696 2 7 up out=- in=111
+3701 1 26 up out=- in=63
+3709 1 29 up out=63 in=-
+3710 0 5 down out=- in=209
+3710 3 28 up out=1455 in=-
+3720 0 0 down out=209 in=-
+3722 2 28 up out=111 in=-
+3737 0 7 up out=- in=941
+3742 1 29 down out=- in=1492
+3747 0 12 up out=941 in=-
+3749 2 25 up out=- in=1245
+3751 1 25 down out=1492 in=-
+3753 0 11 down out=- in=102
+3758 2 29 up out=1245 in=-
+3769 0 0 down out=102 in=-
+3774 0 0 up out=- in=1157
+3780 0 1 up out=1157 in=-
+3808 1 0 up out=- in=168
+3812 3 15 up out=- in=1144
+3814 0 0 up out=- in=721
+3819 3 17 up out=1144 in=-
+3828 1 15 up out=- in=262
+3828 2 28 down out=- in=674
+3837 3 21 down out=- in=159
+3841 1 23 up out=262 in=-
+3843 2 18 down out=674 in=-
+3847 1 24 up out=168 in=-
+3848 0 29 up out=721 in=-
+3858 3 5 down out=159 in=-
+3864 1 22 down out=- in=1057
+3865 3 5 down out=- in=531
+3873 3 2 down out=531 in=-
+3889 1 2 down out=1057 in=-
+3889 3 2 up out=- in=428
+3893 2 10 up out=- in=1362
+3898 3 6 up out=428 in=-
+3908 2 20 up out=1362 in=-
+3916 2 19 down out=- in=1445
+3919 1 2 up out=- in=40
+3921 0 18 up out=- in=1471
+3926 2 14 down out=1445 in=-
+3931 0 23 up out=1471 in=-
+3934 2 12 up out=- in=117
+3936 0 23 down out=- in=1390
+3939 3 5 up out=- in=376
+3940 2 13 up out=117 in=-
+3944 0 20 down out=1390 in=-
+3947 1 25 up out=40 in=-
+3953 0 17 down out=- in=1463
+3957 2 23 up out=- in=467
+3963 3 24 up out=376 in=-
+3968 2 29 up out=467 in=-
+3970 0 5 down out=1463 in=-
+3978 0 2 up out=- in=1438
+3979 2 23 down out=- in=1418
+3986 0 5 up out=- in=773
+3986 3 6 down out=- in=70
+3990 2 17 down out=1418 in=-
+3995 0 9 up out=773 in=-
+3995 3 2 down out=70 in=-
+4000 3 2 up out=- in=60
+4003 0 12 up out=1438 in=-
+4010 2 2 down out=- in=578
+4012 3 9 up out=60 in=-
+4016 2 1 down out=578 in=-
+passenger 0 elevator 1 wait 10 ride 10
+passenger 2 elevator 3 wait 1 ride 26
+passenger 4 elevator 2 wait 7 ride 27
+passenger 7 elevator 1 wait 39 ride 16
+passenger 8 elevator 0 wait 4 ride 12
+passenger 11 elevator 1 wait 0 ride 8
+passenger 16 elevator 2 wait 1 ride 22
+passenger 19 elevator 1 wait 4 ride 7
+passenger 21 elevator 1 wait 2 ride 6
+passenger 22 elevator 1 wait 7 ride 20
+passenger 23 elevator 1 wait 17 ride 14
+passenger 25 elevator 3 wait 8 ride 14
+passenger 31 elevator 1 wait 17 ride 14
+passenger 34 elevator 3 wait 2 ride 10
+passenger 37 elevator 1 wait 3 ride 7
+passenger 40 elevator 1 wait 0 ride 28
+passenger 46 elevator 3 wait 30 ride 15
+passenger 48 elevator 1 wait 7 ride 11
+passenger 58 elevator 0 wait 3 ride 26
+passenger 60 elevator 3 wait 7 ride 12
+passenger 63 elevator 1 wait 4 ride 8
+passenger 65 elevator 0 wait 3 ride 36
+passenger 70 elevator 3 wait 42 ride 9
+passenger 82 elevator 0 wait 15 ride 30
+passenger 85 elevator 1 wait 5 ride 6
+passenger 87 elevator 2 wait 4 ride 15
+passenger 96 elevator 2 wait 47 ride 12
+passenger 98 elevator 2 wait 4 ride 14
+passenger 99 elevator 3 wait 2 ride 21
+passenger 101 elevator 0 wait 5 ride 12
+passenger 102 elevator 0 wait 23 ride 16
+passenger 105 elevator 1 wait 25 ride 31
+passenger 106 elevator 2 wait 4 ride 20
+passenger 107 elevator 2 wait 3 ride 23
+passenger 111 elevator 2 wait 6 ride 26
+passenger 115 elevator 3 wait 26 ride 28
+passenger 116 elevator 2 wait 1 ride 15
+passenger 117 elevator 2 wait 2 ride 6
+passenger 120 elevator 0 wait 4 ride 14
+passenger 123 elevator 3 wait 23 ride 8
+passenger 124 elevator 2 wait 14 ride 15
+passenger 128 elevator 0 wait 19 ride 28
+passenger 129 elevator 0 wait 1 ride 6
+passenger 133 elevator 1 wait 33 ride 21
+passenger 137 elevator 0 wait 43 ride 6
+passenger 138 elevator 1 wait 15 ride 38
+passenger 139 elevator 3 wait 2 ride 21
+passenger 141 elevator 0 wait 4 ride 17
+passenger 143 elevator 3 wait 2 ride 12
+passenger 144 elevator 3 wait 12 ride 25
+passenger 145 elevator 2 wait 40 ride 20
+passenger 151 elevator 3 wait 12 ride 23
+passenger 153 elevator 0 wait 7 ride 21
+passenger 154 elevator 3 wait 2 ride 22
+passenger 159 elevator 3 wait 4 ride 21
+passenger 167 elevator 2 wait 47 ride 7
+passenger 168 elevator 1 wait 25 ride 39
+passenger 169 elevator 2 wait 19 ride 40
+passenger 170 elevator 2 wait 2 ride 28
+passenger 171 elevator 3 wait 0 ride 27
+passenger 175 elevator 2 wait 5 ride 17
+passenger 179 elevator 0 wait 41 ride 9
+passenger 180 elevator 3 wait 2 ride 32
+passenger 181 elevator 3 wait 0 ride 15
+passenger 182 elevator 2 wait 4 ride 9
+passenger 183 elevator 0 wait 1 ride 12
+passenger 184 elevator 0 wait 1 ride 9
+passenger 187 elevator 2 wait 27 ride 24
+passenger 190 elevator 2 wait 18 ride 26
+passenger 191 elevator 3 wait 0 ride 15
+passenger 193 elevator 2 wait 34 ride 30
+passenger 194 elevator 2 wait 35 ride 12
+passenger 195 elevator 3 wait 1 ride 9
+passenger 198 elevator 2 wait 16 ride 50
+passenger 199 elevator 2 wait 3 ride 6
+passenger 201 elevator 0 wait 16 ride 10
+passenger 202 elevator 0 wait 58 ride 14
+passenger 204 elevator 3 wait 2 ride 28
+passenger 207 elevator 1 wait 10 ride 21
+passenger 208 elevator 3 wait 16 ride 6
+passenger 209 elevator 0 wait 1 ride 10
+passenger 212 elevator 0 wait 25 ride 17
+passenger 217 elevator 2 wait 30 ride 15
+passenger 219 elevator 1 wait 25 ride 13
+passenger 221 elevator 1 wait 19 ride 15
+passenger 224 elevator 2 wait 2 ride 20
+passenger 227 elevator 2 wait 8 ride 22
+passenger 230 elevator 0 wait 4 ride 25
+passenger 233 elevator 3 wait 6 ride 7
+passenger 235 elevator 3 wait 12 ride 16
+passenger 239 elevator 0 wait 0 ride 35
+passenger 242 elevator 1 wait 3 ride 33
+passenger 253 elevator 0 wait 1 ride 17
+passenger 256 elevator 0 wait 4 ride 10
+passenger 258 elevator 2 wait 1 ride 12
+passenger 261 elevator 2 wait 19 ride 20
+passenger 262 elevator 1 wait 40 ride 13
+passenger 263 elevator 1 wait 1 ride 6
+passenger 265 elevator 1 wait 25 ride 19
+passenger 267 elevator 2 wait 4 ride 9
+passenger 274 elevator 1 wait 13 ride 57
+passenger 277 elevator 2 wait 1 ride 6
+passenger 280 elevator 2 wait 26 ride 8
+passenger 284 elevator 3 wait 6 ride 8
+passenger 287 elevator 2 wait 28 ride 19
+passenger 293 elevator 3 wait 3 ride 8
+passenger 295 elevator 0 wait 1 ride 14
+passenger 297 elevator 3 wait 67 ride 7
+passenger 299 elevator 1 wait 12 ride 9
+passenger 305 elevator 3 wait 5 ride 11
+passenger 307 elevator 1 wait 61 ride 12
+passenger 308 elevator 3 wait 6 ride 21
+passenger 310 elevator 2 wait 15 ride 6
+passenger 316 elevator 3 wait 4 ride 6
+passenger 319 elevator 1 wait 8 ride 25
+passenger 324 elevator 3 wait 7 ride 6
+passenger 327 elevator 3 wait 17 ride 34
+passenger 331 elevator 3 wait 4 ride 16
+passenger 333 elevator 1 wait 5 ride 30
+passenger 335 elevator 0 wait 1 ride 8
+passenger 338 elevator 2 wait 7 ride 17
+passenger 339 elevator 2 wait 16 ride 12
+passenger 345 elevator 3 wait 11 ride 15
+passenger 355 elevator 0 wait 2 ride 16
+passenger 356 elevator 1 wait 12 ride 27
+passenger 357 elevator 1 wait 4 ride 22
+passenger 358 elevator 2 wait 19 ride 30
+passenger 363 elevator 1 wait 12 ride 8
+passenger 369 elevator 3 wait 0 ride 15
+passenger 371 elevator 2 wait 5 ride 24
+passenger 374 elevator 0 wait 15 ride 6
+passenger 376 elevator 3 wait 1 ride 24
+passenger 385 elevator 0 wait 7 ride 49
+passenger 387 elevator 3 wait 11 ride 6
+passenger 400 elevator 0 wait 0 ride 12
+passenger 402 elevator 2 wait 6 ride 8
+passenger 405 elevator 1 wait 3 ride 21
+passenger 408 elevator 3 wait 0 ride 16
+passenger 409 elevator 0 wait 25 ride 21
+passenger 411 elevator 1 wait 28 ride 23
+passenger 413 elevator 1 wait 8 ride 22
+passenger 421 elevator 0 wait 8 ride 26
+passenger 422 elevator 0 wait 3 ride 21
+passenger 424 elevator 2 wait 25 ride 19
+passenger 426 elevator 0 wait 11 ride 11
+passenger 427 elevator 2 wait 18 ride 25
+passenger 428 elevator 3 wait 0 ride 9
+passenger 430 elevator 2 wait 35 ride 26
+passenger 431 elevator 0 wait 23 ride 6
+passenger 441 elevator 1 wait 62 ride 11
+passenger 442 elevator 1 wait 11 ride 13
+passenger 446 elevator 3 wait 0 ride 8
+passenger 450 elevator 1 wait 15 ride 16
+passenger 452 elevator 2 wait 4 ride 8
+passenger 460 elevator 1 wait 11 ride 13
+passenger 467 elevator 2 wait 10 ride 11
+passenger 468 elevator 1 wait 5 ride 29
+passenger 469 elevator 0 wait 32 ride 33
+passenger 470 elevator 1 wait 5 ride 16
+passenger 472 elevator 2 wait 0 ride 43
+passenger 481 elevator 0 wait 2 ride 29
+passenger 492 elevator 2 wait 1 ride 19
+passenger 493 elevator 0 wait 4 ride 7
+passenger 494 elevator 3 wait 3 ride 29
+passenger 502 elevator 0 wait 16 ride 33
+passenger 504 elevator 1 wait 11 ride 10
+passenger 510 elevator 1 wait 52 ride 9
+passenger 513 elevator 0 wait 16 ride 22
+passenger 524 elevator 3 wait 5 ride 12
+passenger 525 elevator 3 wait 4 ride 45
+passenger 530 elevator 2 wait 9 ride 6
+passenger 531 elevator 3 wait 0 ride 8
+passenger 537 elevator 2 wait 2 ride 17
+passenger 539 elevator 3 wait 0 ride 9
+passenger 540 elevator 1 wait 12 ride 7
+passenger 542 elevator 3 wait 4 ride 19
+passenger 543 elevator 1 wait 44 ride 12
+passenger 546 elevator 3 wait 6 ride 19
+passenger 548 elevator 1 wait 0 ride 6
+passenger 550 elevator 2 wait 4 ride 6
+passenger 552 elevator 0 wait 1 ride 18
+passenger 553 elevator 2 wait 4 ride 16
+passenger 558 elevator 0 wait 27 ride 15
+passenger 573 elevator 1 wait 10 ride 10
+passenger 577 elevator 1 wait 28 ride 7
+passenger 578 elevator 2 wait 63 ride 6
+passenger 580 elevator 3 wait 4 ride 23
+passenger 582 elevator 2 wait 4 ride 8
+passenger 584 elevator 0 wait 9 ride 15
+passenger 586 elevator 0 wait 4 ride 26
+passenger 587 elevator 3 wait 1 ride 16
+passenger 590 elevator 0 wait 13 ride 19
+passenger 593 elevator 0 wait 4 ride 19
+passenger 601 elevator 2 wait 1 ride 16
+passenger 602 elevator 0 wait 31 ride 23
+passenger 605 elevator 1 wait 30 ride 12
+passenger 608 elevator 3 wait 14 ride 18
+passenger 609 elevator 0 wait 3 ride 12
+passenger 610 elevator 1 wait 5 ride 16
+passenger 612 elevator 1 wait 3 ride 19
+passenger 615 elevator 2 wait 7 ride 12
+passenger 616 elevator 0 wait 5 ride 29
+passenger 618 elevator 2 wait 15 ride 15
+passenger 622 elevator 3 wait 33 ride 42
+passenger 626 elevator 0 wait 2 ride 15
+passenger 631 elevator 3 wait 17 ride 44
+passenger 634 elevator 2 wait 13 ride 18
+passenger 637 elevator 2 wait 0 ride 63
+passenger 638 elevator 0 wait 0 ride 18
+passenger 641 elevator 2 wait 0 ride 28
+passenger 645 elevator 2 wait 5 ride 32
+passenger 647 elevator 1 wait 1 ride 17
+passenger 649 elevator 1 wait 30 ride 43
+passenger 650 elevator 0 wait 13 ride 37
+passenger 659 elevator 0 wait 13 ride 45
+passenger 661 elevator 1 wait 5 ride 10
+passenger 667 elevator 1 wait 29 ride 16
+passenger 670 elevator 2 wait 18 ride 30
+passenger 672 elevator 0 wait 7 ride 13
+passenger 674 elevator 2 wait 1 ride 15
+passenger 676 elevator 3 wait 34 ride 30
+passenger 680 elevator 0 wait 2 ride 26
+passenger 681 elevator 1 wait 13 ride 8
+passenger 683 elevator 2 wait 18 ride 28
+passenger 685 elevator 2 wait 1 ride 9
+passenger 688 elevator 1 wait 6 ride 10
+passenger 690 elevator 3 wait 1 ride 22
+passenger 699 elevator 2 wait 3 ride 20
+passenger 702 elevator 1 wait 5 ride 11
+passenger 706 elevator 3 wait 23 ride 12
+passenger 716 elevator 2 wait 34 ride 13
+passenger 717 elevator 1 wait 12 ride 9
+passenger 719 elevator 2 wait 13 ride 21
+passenger 721 elevator 0 wait 1 ride 34
+passenger 723 elevator 2 wait 5 ride 23
+passenger 724 elevator 3 wait 12 ride 29
+passenger 728 elevator 0 wait 4 ride 13
+passenger 732 elevator 2 wait 3 ride 27
+passenger 735 elevator 0 wait 30 ride 11
+passenger 743 elevator 2 wait 31 ride 38
+passenger 744 elevator 2 wait 1 ride 17
+passenger 745 elevator 1 wait 2 ride 6
+passenger 747 elevator 3 wait 42 ride 11
+passenger 748 elevator 3 wait 18 ride 12
+passenger 755 elevator 3 wait 2 ride 37
+passenger 756 elevator 1 wait 1 ride 21
+passenger 760 elevator 3 wait 19 ride 14
+passenger 763 elevator 1 wait 73 ride 11
+passenger 764 elevator 3 wait 13 ride 13
+passenger 765 elevator 3 wait 20 ride 18
+passenger 766 elevator 0 wait 5 ride 44
+passenger 771 elevator 2 wait 7 ride 6
+passenger 772 elevator 0 wait 13 ride 10
+passenger 773 elevator 0 wait 26 ride 9
+passenger 779 elevator 3 wait 1 ride 13
+passenger 781 elevator 0 wait 0 ride 11
+passenger 784 elevator 0 wait 18 ride 20
+passenger 785 elevator 2 wait 17 ride 6
+passenger 786 elevator 0 wait 8 ride 13
+passenger 787 elevator 2 wait 64 ride 20
+passenger 788 elevator 0 wait 9 ride 6
+passenger 790 elevator 1 wait 13 ride 36
+passenger 792 elevator 2 wait 72 ride 7
+passenger 793 elevator 1 wait 2 ride 23
+passenger 796 elevator 3 wait 8 ride 26
+passenger 805 elevator 0 wait 48 ride 12
+passenger 806 elevator 3 wait 0 ride 19
+passenger 808 elevator 2 wait 12 ride 28
+passenger 809 elevator 3 wait 3 ride 8
+passenger 810 elevator 0 wait 0 ride 9
+passenger 813 elevator 3 wait 19 ride 11
+passenger 814 elevator 2 wait 1 ride 22
+passenger 818 elevator 1 wait 40 ride 8
+passenger 829 elevator 0 wait 3 ride 9
+passenger 833 elevator 0 wait 11 ride 9
+passenger 838 elevator 1 wait 9 ride 11
+passenger 840 elevator 3 wait 12 ride 6
+passenger 844 elevator 1 wait 2 ride 9
+passenger 845 elevator 1 wait 8 ride 7
+passenger 853 elevator 0 wait 6 ride 11
+passenger 854 elevator 0 wait 1 ride 25
+passenger 856 elevator 2 wait 2 ride 21
+passenger 857 elevator 0 wait 26 ride 23
+passenger 861 elevator 3 wait 1 ride 11
+passenger 863 elevator 3 wait 4 ride 19
+passenger 864 elevator 0 wait 3 ride 15
+passenger 868 elevator 2 wait 4 ride 19
+passenger 869 elevator 2 wait 4 ride 13
+passenger 870 elevator 0 wait 7 ride 22
+passenger 871 elevator 3 wait 11 ride 20
+passenger 873 elevator 0 wait 5 ride 32
+passenger 875 elevator 0 wait 6 ride 10
+passenger 876 elevator 1 wait 3 ride 24
+passenger 877 elevator 3 wait 2 ride 17
+passenger 881 elevator 1 wait 41 ride 12
+passenger 882 elevator 1 wait 5 ride 8
+passenger 883 elevator 1 wait 4 ride 10
+passenger 887 elevator 3 wait 41 ride 7
+passenger 888 elevator 3 wait 0 ride 28
+passenger 892 elevator 3 wait 18 ride 31
+passenger 894 elevator 0 wait 3 ride 17
+passenger 896 elevator 2 wait 42 ride 7
+passenger 898 elevator 3 wait 21 ride 8
+passenger 899 elevator 3 wait 42 ride 19
+passenger 900 elevator 2 wait 1 ride 14
+passenger 903 elevator 0 wait 0 ride 24
+passenger 907 elevator 2 wait 1 ride 14
+passenger 914 elevator 1 wait 29 ride 12
+passenger 922 elevator 0 wait 6 ride 28
+passenger 928 elevator 0 wait 1 ride 21
+passenger 931 elevator 0 wait 1 ride 6
+passenger 932 elevator 3 wait 7 ride 9
+passenger 935 elevator 1 wait 1 ride 25
+passenger 940 elevator 3 wait 2 ride 10
+passenger 941 elevator 0 wait 7 ride 10
+passenger 944 elevator 1 wait 1 ride 30
+passenger 945 elevator 1 wait 1 ride 31
+passenger 946 elevator 0 wait 2 ride 26
+passenger 947 elevator 0 wait 2 ride 13
+passenger 949 elevator 1 wait 14 ride 10
+passenger 959 elevator 2 wait 7 ride 15
+passenger 962 elevator 3 wait 3 ride 18
+passenger 965 elevator 3 wait 20 ride 26
+passenger 966 elevator 2 wait 2 ride 6
+passenger 968 elevator 2 wait 1 ride 19
+passenger 972 elevator 0 wait 0 ride 22
+passenger 974 elevator 0 wait 1 ride 20
+passenger 978 elevator 2 wait 9 ride 12
+passenger 983 elevator 1 wait 3 ride 8
+passenger 989 elevator 1 wait 13 ride 31
+passenger 990 elevator 0 wait 17 ride 25
+passenger 991 elevator 3 wait 28 ride 15
+passenger 994 elevator 3 wait 16 ride 20
+passenger 998 elevator 0 wait 36 ride 29
+passenger 1002 elevator 1 wait 13 ride 7
+passenger 1006 elevator 3 wait 19 ride 6
+passenger 1012 elevator 3 wait 3 ride 13
+passenger 1015 elevator 3 wait 4 ride 13
+passenger 1016 elevator 3 wait 8 ride 16
+passenger 1021 elevator 2 wait 1 ride 9
+passenger 1026 elevator 1 wait 22 ride 18
+passenger 1028 elevator 1 wait 8 ride 23
+passenger 1032 elevator 3 wait 6 ride 7
+passenger 1034 elevator 0 wait 30 ride 15
+passenger 1036 elevator 0 wait 3 ride 8
+passenger 1037 elevator 1 wait 3 ride 9
+passenger 1039 elevator 3 wait 24 ride 13
+passenger 1040 elevator 0 wait 11 ride 44
+passenger 1042 elevator 1 wait 13 ride 7
+passenger 1043 elevator 1 wait 33 ride 11
+passenger 1045 elevator 3 wait 2 ride 8
+passenger 1048 elevator 1 wait 22 ride 21
+passenger 1052 elevator 0 wait 7 ride 30
+passenger 1053 elevator 3 wait 37 ride 18
+passenger 1056 elevator 0 wait 12 ride 13
+passenger 1057 elevator 1 wait 2 ride 25
+passenger 1064 elevator 2 wait 12 ride 19
+passenger 1067 elevator 0 wait 1 ride 14
+passenger 1068 elevator 3 wait 12 ride 8
+passenger 1071 elevator 3 wait 1 ride 35
+passenger 1075 elevator 3 wait 19 ride 9
+passenger 1078 elevator 1 wait 11 ride 8
+passenger 1079 elevator 3 wait 0 ride 20
+passenger 1084 elevator 0 wait 20 ride 10
+passenger 1085 elevator 3 wait 8 ride 29
+passenger 1089 elevator 0 wait 36 ride 13
+passenger 1093 elevator 2 wait 5 ride 14
+passenger 1094 elevator 3 wait 37 ride 32
+passenger 1096 elevator 2 wait 15 ride 7
+passenger 1097 elevator 1 wait 3 ride 7
+passenger 1099 elevator 3 wait 8 ride 15
+passenger 1104 elevator 0 wait 0 ride 8
+passenger 1108 elevator 3 wait 28 ride 51
+passenger 1119 elevator 1 wait 35 ride 41
+passenger 1123 elevator 2 wait 9 ride 31
+passenger 1125 elevator 2 wait 9 ride 10
+passenger 1128 elevator 3 wait 21 ride 34
+passenger 1129 elevator 1 wait 3 ride 12
+passenger 1134 elevator 0 wait 22 ride 20
+passenger 1138 elevator 2 wait 3 ride 8
+passenger 1141 elevator 2 wait 4 ride 23
+passenger 1143 elevator 1 wait 22 ride 19
+passenger 1144 elevator 3 wait 13 ride 7
+passenger 1145 elevator 1 wait 17 ride 25
+passenger 1146 elevator 0 wait 3 ride 7
+passenger 1148 elevator 1 wait 22 ride 33
+passenger 1149 elevator 2 wait 16 ride 26
+passenger 1150 elevator 3 wait 0 ride 26
+passenger 1151 elevator 1 wait 49 ride 17
+passenger 1153 elevator 1 wait 7 ride 18
+passenger 1157 elevator 0 wait 12 ride 6
+passenger 1160 elevator 2 wait 41 ride 14
+passenger 1167 elevator 1 wait 3 ride 20
+passenger 1173 elevator 1 wait 37 ride 26
+passenger 1175 elevator 2 wait 15 ride 21
+passenger 1178 elevator 0 wait 8 ride 19
+passenger 1181 elevator 2 wait 28 ride 22
+passenger 1184 elevator 1 wait 26 ride 7
+passenger 1185 elevator 2 wait 27 ride 34
+passenger 1186 elevator 2 wait 7 ride 34
+passenger 1190 elevator 3 wait 5 ride 13
+passenger 1192 elevator 0 wait 14 ride 10
+passenger 1195 elevator 0 wait 41 ride 7
+passenger 1196 elevator 2 wait 14 ride 31
+passenger 1197 elevator 1 wait 5 ride 13
+passenger 1203 elevator 1 wait 61 ride 10
+passenger 1204 elevator 3 wait 37 ride 6
+passenger 1214 elevator 2 wait 26 ride 13
+passenger 1223 elevator 3 wait 3 ride 18
+passenger 1227 elevator 2 wait 7 ride 10
+passenger 1230 elevator 0 wait 0 ride 19
+passenger 1233 elevator 2 wait 0 ride 15
+passenger 1238 elevator 2 wait 50 ride 15
+passenger 1241 elevator 2 wait 9 ride 10
+passenger 1242 elevator 2 wait 20 ride 59
+passenger 1245 elevator 2 wait 3 ride 9
+passenger 1247 elevator 3 wait 3 ride 8
+passenger 1248 elevator 1 wait 11 ride 11
+passenger 1250 elevator 1 wait 4 ride 14
+passenger 1251 elevator 0 wait 0 ride 6
+passenger 1263 elevator 2 wait 5 ride 49
+passenger 1269 elevator 0 wait 11 ride 12
+passenger 1272 elevator 1 wait 9 ride 33
+passenger 1273 elevator 1 wait 20 ride 32
+passenger 1276 elevator 2 wait 27 ride 6
+passenger 1278 elevator 3 wait 22 ride 43
+passenger 1282 elevator 2 wait 18 ride 11
+passenger 1289 elevator 0 wait 39 ride 6
+passenger 1295 elevator 0 wait 7 ride 30
+passenger 1304 elevator 3 wait 1 ride 13
+passenger 1308 elevator 0 wait 43 ride 7
+passenger 1316 elevator 1 wait 3 ride 16
+passenger 1318 elevator 2 wait 1 ride 26
+passenger 1319 elevator 2 wait 5 ride 12
+passenger 1320 elevator 2 wait 15 ride 9
+passenger 1321 elevator 2 wait 0 ride 6
+passenger 1323 elevator 2 wait 9 ride 15
+passenger 1324 elevator 2 wait 0 ride 18
+passenger 1325 elevator 1 wait 84 ride 20
+passenger 1327 elevator 0 wait 16 ride 13
+passenger 1330 elevator 2 wait 3 ride 9
+passenger 1331 elevator 3 wait 40 ride 35
+passenger 1332 elevator 3 wait 34 ride 27
+passenger 1337 elevator 2 wait 1 ride 40
+passenger 1340 elevator 2 wait 5 ride 28
+passenger 1342 elevator 2 wait 52 ride 38
+passenger 1344 elevator 3 wait 4 ride 26
+passenger 1347 elevator 1 wait 40 ride 31
+passenger 1354 elevator 3 wait 4 ride 13
+passenger 1357 elevator 2 wait 5 ride 21
+passenger 1361 elevator 0 wait 3 ride 17
+passenger 1362 elevator 2 wait 8 ride 15
+passenger 1365 elevator 1 wait 31 ride 22
+passenger 1372 elevator 1 wait 11 ride 38
+passenger 1373 elevator 0 wait 7 ride 14
+passenger 1374 elevator 1 wait 19 ride 7
+passenger 1376 elevator 0 wait 1 ride 16
+passenger 1377 elevator 2 wait 7 ride 10
+passenger 1378 elevator 2 wait 1 ride 20
+passenger 1379 elevator 3 wait 14 ride 21
+passenger 1380 elevator 0 wait 4 ride 35
+passenger 1386 elevator 1 wait 22 ride 8
+passenger 1390 elevator 0 wait 7 ride 8
+passenger 1392 elevator 1 wait 39 ride 28
+passenger 1396 elevator 3 wait 5 ride 31
+passenger 1397 elevator 3 wait 48 ride 10
+passenger 1404 elevator 0 wait 4 ride 18
+passenger 1411 elevator 0 wait 9 ride 13
+passenger 1412 elevator 0 wait 55 ride 23
+passenger 1413 elevator 2 wait 7 ride 24
+passenger 1418 elevator 2 wait 32 ride 11
+passenger 1425 elevator 3 wait 34 ride 11
+passenger 1428 elevator 1 wait 4 ride 20
+passenger 1434 elevator 2 wait 1 ride 17
+passenger 1436 elevator 2 wait 64 ride 23
+passenger 1438 elevator 0 wait 28 ride 25
+passenger 1439 elevator 0 wait 0 ride 17
+passenger 1441 elevator 2 wait 3 ride 7
+passenger 1445 elevator 2 wait 1 ride 10
+passenger 1446 elevator 3 wait 0 ride 21
+passenger 1449 elevator 3 wait 0 ride 29
+passenger 1451 elevator 2 wait 4 ride 28
+passenger 1455 elevator 3 wait 1 ride 16
+passenger 1459 elevator 2 wait 1 ride 10
+passenger 1460 elevator 3 wait 28 ride 15
+passenger 1461 elevator 2 wait 1 ride 22
+passenger 1463 elevator 0 wait 2 ride 17
+passenger 1466 elevator 1 wait 35 ride 8
+passenger 1468 elevator 0 wait 6 ride 22
+passenger 1469 elevator 1 wait 4 ride 13
+passenger 1471 elevator 0 wait 11 ride 10
+passenger 1474 elevator 2 wait 1 ride 15
+passenger 1482 elevator 0 wait 1 ride 7
+passenger 1484 elevator 0 wait 5 ride 18
+passenger 1487 elevator 3 wait 8 ride 21
+passenger 1488 elevator 2 wait 15 ride 12
+passenger 1489 elevator 1 wait 0 ride 27
+passenger 1492 elevator 1 wait 0 ride 9
+passenger 1493 elevator 3 wait 4 ride 23
+passenger 1494 elevator 2 wait 0 ride 28
+summary passengers 500 makespan 4016 avg_wait 12.93 max_wait 84 avg_ride 17.97

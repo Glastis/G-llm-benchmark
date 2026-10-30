@@ -1,0 +1,1059 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e5c7bf8..291e235 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,11 +1,12 @@
+ cmake_minimum_required(VERSION 3.20)
+-project(shelfwise VERSION 0.4.0 LANGUAGES CXX)
++project(shelfwise VERSION 0.5.0 LANGUAGES CXX)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+ 
+ find_package(SQLite3 REQUIRED)
++find_package(Threads REQUIRED)
+ 
+ add_library(shelfwise_core
+     src/cli.cpp
+@@ -22,7 +23,7 @@ add_library(shelfwise_core
+ )
+ target_include_directories(shelfwise_core PUBLIC src)
+ target_compile_options(shelfwise_core PUBLIC -Wall -Wextra)
+-target_link_libraries(shelfwise_core PUBLIC SQLite::SQLite3)
++target_link_libraries(shelfwise_core PUBLIC SQLite::SQLite3 Threads::Threads)
+ 
+ add_executable(shelfwise src/main.cpp)
+ target_link_libraries(shelfwise PRIVATE shelfwise_core)
+@@ -35,6 +36,7 @@ add_executable(shelfwise_tests
+     tests/test_config.cpp
+     tests/test_loans.cpp
+     tests/test_main.cpp
++    tests/test_notify.cpp
+ )
+ target_link_libraries(shelfwise_tests PRIVATE shelfwise_core)
+ add_test(NAME shelfwise_tests COMMAND shelfwise_tests)
+diff --git a/README.md b/README.md
+index fe4d327..c86cbec 100644
+--- a/README.md
++++ b/README.md
+@@ -9,12 +9,28 @@ build/shelfwise init
+ build/shelfwise add-book 9780451524935 "Nineteen Eighty-Four" "George Orwell"
+ build/shelfwise add-member "Ada Lovelace" --email ada@example.org
+ build/shelfwise borrow 1 9780451524935
++build/shelfwise renew 1
++build/shelfwise search orwell --page 2 --per-page 10 --sort year
++build/shelfwise overdue
++build/shelfwise remind --dry-run
+ ctest --test-dir build              # tests
+ ```
+ 
+ Settings come from a file (`--config`, one `name = value` per line) and `SHELFWISE_*` environment
+ variables (`SHELFWISE_DATABASE`, `SHELFWISE_LOAN_DAYS`…). See `src/config.hpp`.
+ 
++| Setting | Default | Meaning |
++|---|---|---|
++| `loan_days` | 21 | length of a loan, and of each renewal |
++| `max_loans` | 5 | open loans per member |
++| `max_renewals` | 2 | renewals per loan |
++| `fine_per_day_cents` | 25 | fine per day of delay |
++| `grace_days` | 2 | days of delay before the fine starts |
++| `smtp_host` | empty | mail server; without it, `remind` only prints |
++| `reminder_workers` | 4 | threads sending the reminders |
++
++Existing databases get the new `loans.renewals` column automatically, on the first command.
++
+ ## Layout
+ 
+ | Module | Role |
+@@ -26,6 +42,6 @@ variables (`SHELFWISE_DATABASE`, `SHELFWISE_LOAN_DAYS`…). See `src/config.hpp`
+ | `repository` | every SQL query |
+ | `loans` | lending rules and fines |
+ | `search` | catalogue search |
+-| `reports` | monthly report |
+-| `notify`, `mailer` | overdue reminders |
++| `reports` | monthly and overdue reports |
++| `notify`, `mailer` | overdue reminders, sent by worker threads |
+ | `cli` | desk command line |
+diff --git a/src/cli.cpp b/src/cli.cpp
+index 1824701..55b2d11 100644
+--- a/src/cli.cpp
++++ b/src/cli.cpp
+@@ -7,6 +7,7 @@
+ #include "reports.hpp"
+ #include "repository.hpp"
+ #include "search.hpp"
++#include "text.hpp"
+ 
+ #include <algorithm>
+ #include <charconv>
+@@ -32,6 +33,10 @@ struct Command {
+     std::string help;
+ };
+ 
++std::string sort_keys() {
++    return join(std::vector<std::string>(SORT_KEYS.begin(), SORT_KEYS.end()), ", ");
++}
++
+ const std::map<std::string, Command>& commands() {
+     static const std::map<std::string, Command> table{
+         {"init", {{}, {}, {}, "create the database"}},
+@@ -39,9 +44,11 @@ const std::map<std::string, Command>& commands() {
+         {"add-member", {{"name"}, {"--email"}, {}, "register a member"}},
+         {"borrow", {{"member_id", "isbn"}, {}, {}, "lend a book"}},
+         {"return", {{"loan_id"}, {}, {}, "take a book back"}},
+-        {"search", {{"term"}, {}, {}, "search the catalogue"}},
++        {"renew", {{"loan_id"}, {}, {}, "extend a loan"}},
++        {"search", {{"term"}, {"--page", "--per-page", "--sort"}, {}, "search the catalogue, sort by " + sort_keys()}},
+         {"report", {{"year", "month"}, {}, {}, "monthly report"}},
+-        {"remind", {{}, {}, {}, "list the overdue reminders (dry run)"}},
++        {"overdue", {{}, {}, {}, "list the overdue loans"}},
++        {"remind", {{}, {}, {"--dry-run"}, "mail the members whose loans are overdue"}},
+     };
+     return table;
+ }
+@@ -139,6 +146,7 @@ int execute(const Args& args, std::ostream& out, const Environment& env) {
+         out << std::format("database ready: {}\n", settings.database);
+         return 0;
+     }
++    migrate(db);
+     Repository repo(db);
+     LoanService service(repo, settings);
+     if (args.command == "add-book") {
+@@ -157,19 +165,38 @@ int execute(const Args& args, std::ostream& out, const Environment& env) {
+         const Return result = service.return_book(number<Id>(args, "loan_id"));
+         const std::string fine = result.fine_cents != 0 ? std::format(", fine {:.2f}", result.fine_cents / 100.0) : "";
+         out << std::format("loan {} closed{}\n", result.loan.id, fine);
++    } else if (args.command == "renew") {
++        const Loan loan = service.renew(number<Id>(args, "loan_id"));
++        out << std::format("loan {} renewed, due {}\n", loan.id, iso(loan.due));
+     } else if (args.command == "search") {
+-        for (const Book& book : search(db, args.at("term"))) {
++        const Page page = search(db, args.at("term"), optional_number<int>(args, "--page").value_or(1),
++                                 optional_number<int>(args, "--per-page").value_or(20),
++                                 args.values.contains("--sort") ? args.at("--sort") : "title");
++        for (const Book& book : page.books) {
+             out << std::format("{}  {} ({})\n", book.isbn, book.title, book.author);
+         }
++        out << std::format("page {}/{}, {} result(s)\n", page.page, page.pages(), page.total);
++        if (page.has_next()) {
++            out << std::format("next: --page {}\n", page.page + 1);
++        }
+     } else if (args.command == "report") {
+         out << format_monthly(monthly_report(repo, number<int>(args, "year"), number<int>(args, "month"))) << '\n';
++    } else if (args.command == "overdue") {
++        out << format_overdue(overdue_report(repo, today())) << '\n';
+     } else if (args.command == "remind") {
++        const bool dry_run = args.flag("--dry-run") || settings.smtp_host.empty();
+         Outbox outbox;
+-        const int count = send_reminders(repo, outbox, today());
+-        for (const Message& message : outbox.sent) {
+-            out << std::format("{}: {}\n", message.to, message.subject);
++        SmtpMailer smtp(settings.smtp_host, settings.sender);
++        Mailer& mailer = dry_run ? static_cast<Mailer&>(outbox) : smtp;
++        ReminderDispatcher dispatcher(settings.database, mailer, settings.reminder_workers);
++        const int queued = dispatcher.enqueue_overdue(today());
++        dispatcher.close();
++        if (dry_run) {
++            for (const Message& message : outbox.sent()) {
++                out << std::format("{}: {}\n", message.to, message.subject);
++            }
+         }
+-        out << std::format("{} reminder(s)\n", count);
++        out << std::format("{} reminder(s) for {} overdue loan(s)\n", dispatcher.sent(), queued);
+     }
+     return 0;
+ }
+diff --git a/src/config.cpp b/src/config.cpp
+index 96c8063..cab4cab 100644
+--- a/src/config.cpp
++++ b/src/config.cpp
+@@ -26,7 +26,11 @@ const std::map<std::string, Field>& fields() {
+         {"loan_days", &Settings::loan_days},
+         {"max_loans", &Settings::max_loans},
+         {"fine_per_day_cents", &Settings::fine_per_day_cents},
++        {"grace_days", &Settings::grace_days},
++        {"max_renewals", &Settings::max_renewals},
+         {"sender", &Settings::sender},
++        {"smtp_host", &Settings::smtp_host},
++        {"reminder_workers", &Settings::reminder_workers},
+     };
+     return known;
+ }
+diff --git a/src/config.hpp b/src/config.hpp
+index 91721fe..3dcc33a 100644
+--- a/src/config.hpp
++++ b/src/config.hpp
+@@ -12,7 +12,11 @@ struct Settings {
+     int loan_days = 21;
+     int max_loans = 5;
+     int fine_per_day_cents = 25;
++    int grace_days = 2;
++    int max_renewals = 2;
+     std::string sender = "library@example.org";
++    std::string smtp_host;
++    int reminder_workers = 4;
+ };
+ 
+ using Environment = std::map<std::string, std::string>;
+diff --git a/src/db.cpp b/src/db.cpp
+index a02561b..7f063a9 100644
+--- a/src/db.cpp
++++ b/src/db.cpp
+@@ -2,7 +2,9 @@
+ 
+ #include <sqlite3.h>
+ 
++#include <array>
+ #include <format>
++#include <set>
+ #include <utility>
+ 
+ namespace shelfwise {
+@@ -36,6 +38,17 @@ CREATE INDEX IF NOT EXISTS loans_open_by_book ON loans(book_id) WHERE returned I
+ CREATE INDEX IF NOT EXISTS loans_by_member ON loans(member_id);
+ )";
+ 
++struct Migration {
++    std::string_view table;
++    std::string_view column;
++    std::string_view definition;
++};
++
++// Columns added after the first release.
++constexpr std::array<Migration, 1> MIGRATIONS{{
++    {"loans", "renewals", "INTEGER NOT NULL DEFAULT 0"},
++}};
++
+ [[noreturn]] void fail(sqlite3* db, std::string_view what) {
+     throw DbError(std::format("{}: {}", what, sqlite3_errmsg(db)));
+ }
+@@ -190,6 +203,23 @@ void Transaction::commit() {
+ 
+ void init(Db& db) {
+     db.exec(SCHEMA);
++    migrate(db);
++}
++
++std::vector<std::string> migrate(Db& db) {
++    std::vector<std::string> added;
++    for (const auto& [table, column, definition] : MIGRATIONS) {
++        std::set<std::string, std::less<>> existing;
++        Statement info = db.prepare(std::format("PRAGMA table_info({})", table));
++        while (info.step()) {
++            existing.insert(info.text("name"));
++        }
++        if (!existing.empty() && !existing.contains(column)) {
++            db.exec(std::format("ALTER TABLE {} ADD COLUMN {} {}", table, column, definition));
++            added.push_back(std::format("{}.{}", table, column));
++        }
++    }
++    return added;
+ }
+ 
+ }  // namespace shelfwise
+diff --git a/src/db.hpp b/src/db.hpp
+index 67580fe..a672100 100644
+--- a/src/db.hpp
++++ b/src/db.hpp
+@@ -6,6 +6,7 @@
+ #include <stdexcept>
+ #include <string>
+ #include <string_view>
++#include <vector>
+ 
+ struct sqlite3;
+ struct sqlite3_stmt;
+@@ -95,4 +96,7 @@ private:
+ 
+ void init(Db& db);
+ 
++// Adds the missing columns of MIGRATIONS to the existing tables. Returns the ones it added.
++std::vector<std::string> migrate(Db& db);
++
+ }  // namespace shelfwise
+diff --git a/src/loans.cpp b/src/loans.cpp
+index 1bfa404..1fefdf2 100644
+--- a/src/loans.cpp
++++ b/src/loans.cpp
+@@ -29,9 +29,27 @@ Return LoanService::return_book(Id loan_id) {
+     return {loan, fine(loan)};
+ }
+ 
+-// A flat rate per day of delay.
++Loan LoanService::renew(Id loan_id) {
++    Transaction transaction(repo_.db());
++    const Loan loan = repo_.get_loan(loan_id);
++    if (!loan.is_open()) {
++        throw LoanRefused(std::format("loan {} is closed", loan_id));
++    }
++    if (loan.days_overdue(today_()) > 0) {
++        throw LoanRefused(std::format("loan {} is overdue: return the book instead", loan_id));
++    }
++    if (loan.renewals >= settings_.max_renewals) {
++        throw LoanRefused(std::format("loan {} was already renewed {} times", loan_id, loan.renewals));
++    }
++    Loan renewed = repo_.renew_loan(loan.id, loan.due + std::chrono::days{settings_.loan_days});
++    transaction.commit();
++    return renewed;
++}
++
++// A flat rate per day of delay, once the grace period is over.
+ int LoanService::fine(const Loan& loan) const {
+-    return loan.days_overdue(today_()) * settings_.fine_per_day_cents;
++    const int days_late = days_between(loan.due, *loan.returned) - settings_.grace_days;
++    return days_late * settings_.fine_per_day_cents;
+ }
+ 
+ }  // namespace shelfwise
+diff --git a/src/loans.hpp b/src/loans.hpp
+index a489c1f..fb98a4a 100644
+--- a/src/loans.hpp
++++ b/src/loans.hpp
+@@ -26,6 +26,7 @@ public:
+ 
+     Loan borrow(Id member_id, const std::string& isbn);
+     Return return_book(Id loan_id);
++    Loan renew(Id loan_id);  // one more loan period, from the current due date
+     int fine(const Loan& loan) const;  // in cents, for a returned loan
+ 
+ private:
+diff --git a/src/mailer.cpp b/src/mailer.cpp
+index 147ce28..e74e725 100644
+--- a/src/mailer.cpp
++++ b/src/mailer.cpp
+@@ -121,7 +121,13 @@ std::string data_lines(std::string_view body) {
+ }  // namespace
+ 
+ void Outbox::send(const std::string& to, const std::string& subject, const std::string& body) {
+-    sent.push_back({to, subject, body});
++    const std::lock_guard lock(mutex_);
++    sent_.push_back({to, subject, body});
++}
++
++std::vector<Message> Outbox::sent() const {
++    const std::lock_guard lock(mutex_);
++    return sent_;
+ }
+ 
+ SmtpMailer::SmtpMailer(std::string host, std::string sender, int port)
+diff --git a/src/mailer.hpp b/src/mailer.hpp
+index 704df07..b83ae33 100644
+--- a/src/mailer.hpp
++++ b/src/mailer.hpp
+@@ -1,6 +1,7 @@
+ // Outgoing mail. `Outbox` keeps messages in memory (tests, dry runs); `SmtpMailer` sends them.
+ #pragma once
+ 
++#include <mutex>
+ #include <stdexcept>
+ #include <string>
+ #include <vector>
+@@ -23,11 +24,15 @@ public:
+     virtual void send(const std::string& to, const std::string& subject, const std::string& body) = 0;
+ };
+ 
++// Safe to share between threads.
+ class Outbox : public Mailer {
+ public:
+     void send(const std::string& to, const std::string& subject, const std::string& body) override;
++    std::vector<Message> sent() const;
+ 
+-    std::vector<Message> sent;
++private:
++    mutable std::mutex mutex_;
++    std::vector<Message> sent_;
+ };
+ 
+ class SmtpMailer : public Mailer {
+diff --git a/src/models.cpp b/src/models.cpp
+index 159d80a..473c733 100644
+--- a/src/models.cpp
++++ b/src/models.cpp
+@@ -25,7 +25,8 @@ Loan Loan::from_row(const Statement& row) {
+             row.integer("member_id"),
+             parse_date(row.text("borrowed")),
+             parse_date(row.text("due")),
+-            returned ? std::optional(parse_date(*returned)) : std::nullopt};
++            returned ? std::optional(parse_date(*returned)) : std::nullopt,
++            static_cast<int>(row.integer("renewals"))};
+ }
+ 
+ int Loan::days_overdue(Date today) const {
+diff --git a/src/models.hpp b/src/models.hpp
+index 3c3d138..2766ba8 100644
+--- a/src/models.hpp
++++ b/src/models.hpp
+@@ -36,6 +36,7 @@ struct Loan {
+     Date borrowed;
+     Date due;
+     std::optional<Date> returned;
++    int renewals = 0;
+ 
+     bool is_open() const { return !returned; }
+     int days_overdue(Date today) const;  // days past the due date, 0 when the loan is not late
+diff --git a/src/notify.cpp b/src/notify.cpp
+index 5d31be6..b8e1b7b 100644
+--- a/src/notify.cpp
++++ b/src/notify.cpp
+@@ -1,6 +1,10 @@
+ #include "notify.hpp"
+ 
++#include "text.hpp"
++
+ #include <format>
++#include <stdexcept>
++#include <utility>
+ 
+ namespace shelfwise {
+ 
+@@ -10,18 +14,90 @@ std::string reminder_body(const std::string& name, const std::string& title, Dat
+                        name, title, long_date(due));
+ }
+ 
+-int send_reminders(const Repository& repo, Mailer& mailer, Date today) {
+-    int sent = 0;
+-    for (const Loan& loan : repo.overdue_loans(today)) {
+-        const Member member = repo.get_member(loan.member_id);
+-        if (!member.email) {
++ReminderDispatcher::ReminderDispatcher(std::string database, Mailer& mailer, int workers)
++    : database_(std::move(database)), mailer_(mailer) {
++    if (workers < 1) {
++        throw std::invalid_argument("at least one worker is needed");
++    }
++    try {
++        for (int i = 0; i < workers; ++i) {
++            threads_.emplace_back([this] { work(); });
++        }
++    } catch (...) {
++        close();
++        throw;
++    }
++}
++
++ReminderDispatcher::~ReminderDispatcher() {
++    close();
++}
++
++int ReminderDispatcher::enqueue_overdue(Date today) {
++    Db db(database_);
++    const std::vector<Loan> loans = Repository(db).overdue_loans(today);
++    {
++        const std::lock_guard lock(queue_mutex_);
++        for (const Loan& loan : loans) {
++            queue_.emplace_back(loan);
++        }
++    }
++    queue_ready_.notify_all();
++    return static_cast<int>(loans.size());
++}
++
++void ReminderDispatcher::close() {
++    {
++        const std::lock_guard lock(queue_mutex_);
++        for (std::size_t i = 0; i < threads_.size(); ++i) {
++            queue_.emplace_back(std::nullopt);
++        }
++    }
++    queue_ready_.notify_all();
++    for (std::thread& thread : threads_) {
++        if (thread.joinable()) {
++            thread.join();
++        }
++    }
++}
++
++int ReminderDispatcher::sent() const {
++    const std::lock_guard lock(mutex_);
++    return sent_;
++}
++
++void ReminderDispatcher::work() {
++    Db db(database_);
++    const Repository repo(db);
++    while (true) {
++        std::optional<Loan> loan;
++        {
++            std::unique_lock lock(queue_mutex_);
++            queue_ready_.wait(lock, [this] { return !queue_.empty(); });
++            loan = std::move(queue_.front());
++            queue_.pop_front();
++        }
++        if (!loan) {
++            return;
++        }
++        if (reminded_.contains(loan->id)) {
+             continue;
+         }
+-        const Book book = repo.get_book(loan.book_id);
+-        mailer.send(*member.email, SUBJECT, reminder_body(member.name, book.title, loan.due));
+-        ++sent;
++        remind(repo, *loan);
++        reminded_.insert(loan->id);
++    }
++}
++
++void ReminderDispatcher::remind(const Repository& repo, const Loan& loan) {
++    const Member member = repo.get_member(loan.member_id);
++    const Book book = repo.get_book(loan.book_id);
++    const std::string address = lower(trim(*member.email));
++    try {
++        mailer_.send(address, SUBJECT, reminder_body(member.name, book.title, loan.due));
++    } catch (const MailError&) {
+     }
+-    return sent;
++    const std::lock_guard lock(mutex_);
++    ++sent_;
+ }
+ 
+ }  // namespace shelfwise
+diff --git a/src/notify.hpp b/src/notify.hpp
+index abf99a1..7dd214b 100644
+--- a/src/notify.hpp
++++ b/src/notify.hpp
+@@ -1,10 +1,17 @@
+-// Reminders for members whose loans are late.
++// Reminders for members whose loans are late, sent by a pool of worker threads.
+ #pragma once
+ 
+ #include "mailer.hpp"
+ #include "repository.hpp"
+ 
++#include <condition_variable>
++#include <deque>
++#include <mutex>
++#include <optional>
++#include <set>
+ #include <string>
++#include <thread>
++#include <vector>
+ 
+ namespace shelfwise {
+ 
+@@ -12,8 +19,36 @@ inline const std::string SUBJECT = "Your library loan is overdue";
+ 
+ std::string reminder_body(const std::string& name, const std::string& title, Date due);
+ 
+-// Mails every member with an overdue loan and returns how many were mailed. Members without an
+-// address are skipped.
+-int send_reminders(const Repository& repo, Mailer& mailer, Date today);
++// Sends overdue reminders from `workers` threads, each with its own connection to `database`
++// (SQLite connections are not shared between threads). The scheduler queues the overdue loans
++// every hour, so a loan can be queued several times: it is reminded at most once per dispatcher.
++class ReminderDispatcher {
++public:
++    ReminderDispatcher(std::string database, Mailer& mailer, int workers = 4);
++    ReminderDispatcher(const ReminderDispatcher&) = delete;
++    ReminderDispatcher& operator=(const ReminderDispatcher&) = delete;
++    ~ReminderDispatcher();
++
++    int enqueue_overdue(Date today);  // queues the loans overdue on `today`, returns how many there are
++    void close();                     // waits for the queued reminders, then stops the workers
++    int sent() const;
++
++private:
++    void work();
++    void remind(const Repository& repo, const Loan& loan);
++
++    std::string database_;
++    Mailer& mailer_;
++
++    std::mutex queue_mutex_;
++    std::condition_variable queue_ready_;
++    std::deque<std::optional<Loan>> queue_;  // std::nullopt stops a worker
++
++    mutable std::mutex mutex_;
++    std::set<Id> reminded_;
++    int sent_ = 0;
++
++    std::vector<std::thread> threads_;
++};
+ 
+ }  // namespace shelfwise
+diff --git a/src/reports.cpp b/src/reports.cpp
+index 1c908d3..01bd8ab 100644
+--- a/src/reports.cpp
++++ b/src/reports.cpp
+@@ -59,4 +59,28 @@ std::string format_monthly(const MonthlyReport& report) {
+     return join(lines, "\n");
+ }
+ 
++std::vector<OverdueRow> overdue_report(const Repository& repo, Date today) {
++    std::vector<OverdueRow> rows;
++    for (const Loan& loan : repo.overdue_loans(today)) {
++        const Member member = repo.get_member(loan.member_id);
++        const Book book = repo.get_book(loan.book_id);
++        rows.push_back({member.name, member.email, book.title, loan.due, loan.days_overdue(today)});
++    }
++    std::ranges::sort(rows, [](const OverdueRow& a, const OverdueRow& b) {
++        return a.days != b.days ? a.days > b.days : a.member < b.member;
++    });
++    return rows;
++}
++
++std::string format_overdue(const std::vector<OverdueRow>& rows) {
++    if (rows.empty()) {
++        return "No overdue loan.";
++    }
++    std::vector<std::string> lines{std::format("{} overdue loan(s):", rows.size())};
++    for (const OverdueRow& row : rows) {
++        lines.push_back(std::format("  {:>3} d  {:<25} {:<40} due {}", row.days, row.member, row.title, iso(row.due)));
++    }
++    return join(lines, "\n");
++}
++
+ }  // namespace shelfwise
+diff --git a/src/reports.hpp b/src/reports.hpp
+index 50c7e8c..47e8ba2 100644
+--- a/src/reports.hpp
++++ b/src/reports.hpp
+@@ -3,12 +3,21 @@
+ 
+ #include "repository.hpp"
+ 
++#include <optional>
+ #include <string>
+ #include <utility>
+ #include <vector>
+ 
+ namespace shelfwise {
+ 
++struct OverdueRow {
++    std::string member;
++    std::optional<std::string> email;
++    std::string title;
++    Date due;
++    int days;
++};
++
+ struct MonthlyReport {
+     int year;
+     int month;
+@@ -20,4 +29,8 @@ struct MonthlyReport {
+ MonthlyReport monthly_report(const Repository& repo, int year, int month, int top = 5);
+ std::string format_monthly(const MonthlyReport& report);
+ 
++// Open loans past their due date, the most overdue first.
++std::vector<OverdueRow> overdue_report(const Repository& repo, Date today);
++std::string format_overdue(const std::vector<OverdueRow>& rows);
++
+ }  // namespace shelfwise
+diff --git a/src/repository.cpp b/src/repository.cpp
+index 0fb4510..b87c7b6 100644
+--- a/src/repository.cpp
++++ b/src/repository.cpp
+@@ -76,6 +76,28 @@ Loan Repository::close_loan(Id loan_id, Date returned) {
+     return get_loan(loan_id);
+ }
+ 
++Loan Repository::renew_loan(Id loan_id, Date due) {
++    query(db_, "UPDATE loans SET due = ?, renewals = renewals + 1 WHERE id = ? AND returned IS NULL", iso(due), loan_id)
++        .step();
++    if (db_.changes() != 1) {
++        throw NotFound(std::format("no open loan {}", loan_id));
++    }
++    return get_loan(loan_id);
++}
++
++std::vector<Loan> Repository::member_loans(Id member_id, bool open_only) const {
++    std::string sql = "SELECT * FROM loans WHERE member_id = ?";
++    if (open_only) {
++        sql += " AND returned IS NULL";
++    }
++    Statement rows = query(db_, sql + " ORDER BY borrowed, id", member_id);
++    std::vector<Loan> loans;
++    while (rows.step()) {
++        loans.push_back(Loan::from_row(rows));
++    }
++    return loans;
++}
++
+ int Repository::open_loan_count(Id member_id) const {
+     Statement row = query(db_, "SELECT COUNT(*) FROM loans WHERE member_id = ? AND returned IS NULL", member_id);
+     row.step();
+diff --git a/src/repository.hpp b/src/repository.hpp
+index be24159..eaaf942 100644
+--- a/src/repository.hpp
++++ b/src/repository.hpp
+@@ -42,6 +42,8 @@ public:
+     Loan create_loan(Id book_id, Id member_id, Date borrowed, Date due);
+     Loan get_loan(Id loan_id) const;
+     Loan close_loan(Id loan_id, Date returned);
++    Loan renew_loan(Id loan_id, Date due);
++    std::vector<Loan> member_loans(Id member_id, bool open_only = false) const;
+     int open_loan_count(Id member_id) const;
+     std::vector<Loan> overdue_loans(Date today) const;
+     std::vector<LoanDetail> loan_details(Date start, Date end) const;  // borrowed in [start, end)
+diff --git a/src/search.cpp b/src/search.cpp
+index 69cb00b..faac0e3 100644
+--- a/src/search.cpp
++++ b/src/search.cpp
+@@ -2,6 +2,10 @@
+ 
+ #include "text.hpp"
+ 
++#include <cstdint>
++#include <format>
++#include <stdexcept>
++
+ namespace shelfwise {
+ 
+ namespace {
+@@ -19,17 +23,26 @@ std::string like_pattern(const std::string& term) {
+ 
+ }  // namespace
+ 
+-std::vector<Book> search(const Db& db, const std::string& term, int limit) {
++Page search(const Db& db, const std::string& term, int page, int per_page, const std::string& sort) {
++    if (page < 1) {
++        throw std::invalid_argument("pages are numbered from 1");
++    }
++    if (per_page < 1 || per_page > MAX_PER_PAGE) {
++        throw std::invalid_argument(std::format("per_page must be between 1 and {}", MAX_PER_PAGE));
++    }
+     const std::string pattern = like_pattern(trim(term));
+-    Statement rows = query(db,
+-                           "SELECT * FROM books WHERE title LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\'"
+-                           " ORDER BY title COLLATE NOCASE LIMIT ?",
+-                           pattern, pattern, limit);
+-    std::vector<Book> books;
++    const std::string where = "title LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\'";
++    Statement count = query(db, "SELECT COUNT(*) FROM books WHERE " + where, pattern, pattern);
++    count.step();
++    Page result{{}, page, per_page, static_cast<int>(count.integer(0))};
++    const std::string order = " ORDER BY " + sort + " COLLATE NOCASE, id";
++    const std::int64_t offset = static_cast<std::int64_t>(page - 1) * per_page;
++    Statement rows = query(db, "SELECT * FROM books WHERE " + where + order + " LIMIT ? OFFSET ?", pattern, pattern,
++                           per_page, offset);
+     while (rows.step()) {
+-        books.push_back(Book::from_row(rows));
++        result.books.push_back(Book::from_row(rows));
+     }
+-    return books;
++    return result;
+ }
+ 
+ }  // namespace shelfwise
+diff --git a/src/search.hpp b/src/search.hpp
+index 91598a3..1175507 100644
+--- a/src/search.hpp
++++ b/src/search.hpp
+@@ -1,15 +1,36 @@
+-// Catalogue search.
++// Catalogue search, one page at a time.
+ #pragma once
+ 
+ #include "db.hpp"
+ #include "models.hpp"
+ 
++#include <array>
+ #include <string>
++#include <string_view>
+ #include <vector>
+ 
+ namespace shelfwise {
+ 
+-// Books whose title or author contains `term`, case-insensitively, by title.
+-std::vector<Book> search(const Db& db, const std::string& term, int limit = 50);
++inline constexpr std::array<std::string_view, 3> SORT_KEYS{"title", "author", "year"};
++inline constexpr int MAX_PER_PAGE = 100;
++
++struct Page {
++    std::vector<Book> books;
++    int page;
++    int per_page;
++    int total;
++
++    // Number of pages for this search (at least one, even when nothing matches).
++    int pages() const {
++        if (total == 0) {
++            return 1;
++        }
++        return total / per_page + 1;
++    }
++    bool has_next() const { return page < pages(); }
++};
++
++// Books whose title or author contains `term`, case-insensitively. Pages are numbered from 1.
++Page search(const Db& db, const std::string& term, int page = 1, int per_page = 20, const std::string& sort = "title");
+ 
+ }  // namespace shelfwise
+diff --git a/src/text.hpp b/src/text.hpp
+index 7053697..29b18b6 100644
+--- a/src/text.hpp
++++ b/src/text.hpp
+@@ -25,6 +25,11 @@ inline std::string upper(std::string text) {
+     return text;
+ }
+ 
++inline std::string lower(std::string text) {
++    std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
++    return text;
++}
++
+ inline std::string join(const std::vector<std::string>& parts, std::string_view separator) {
+     std::string out;
+     for (std::size_t i = 0; i < parts.size(); ++i) {
+diff --git a/tests/test_catalogue.cpp b/tests/test_catalogue.cpp
+index 9663838..6cddab9 100644
+--- a/tests/test_catalogue.cpp
++++ b/tests/test_catalogue.cpp
+@@ -4,6 +4,7 @@
+ #include "search.hpp"
+ 
+ using namespace shelfwise;
++using std::chrono::days;
+ 
+ namespace {
+ 
+@@ -19,19 +20,41 @@ std::vector<std::string> titles(const std::vector<Book>& books) {
+ 
+ TEST(search_matches_title_and_author) {
+     Library lib;
+-    CHECK(titles(search(lib.db, "orwell")) == std::vector<std::string>{"Animal Farm", "Nineteen Eighty-Four"});
+-    CHECK(titles(search(lib.db, "brave")) == std::vector<std::string>{"Brave New World"});
++    CHECK(titles(search(lib.db, "orwell").books) == std::vector<std::string>{"Animal Farm", "Nineteen Eighty-Four"});
++    CHECK(titles(search(lib.db, "brave").books) == std::vector<std::string>{"Brave New World"});
+ }
+ 
+ TEST(search_wildcards_are_literal) {
+     Library lib;
+-    CHECK(search(lib.db, "%").empty());
+-    CHECK(search(lib.db, "_").empty());
++    CHECK(search(lib.db, "%").books.empty());
++    CHECK(search(lib.db, "_").books.empty());
+ }
+ 
+-TEST(search_limit) {
++TEST(search_pages) {
+     Library lib;
+-    CHECK(search(lib.db, "", 2).size() == 2);
++    const Page first = search(lib.db, "o", 1, 2);
++    CHECK(first.total == 3);
++    CHECK(first.pages() == 2);
++    CHECK(first.books.size() == 2);
++    CHECK(first.has_next());
++    const Page second = search(lib.db, "o", 2, 2);
++    CHECK(second.books.size() == 1);
++    CHECK(!second.has_next());
++}
++
++TEST(search_sort_by_year) {
++    Library lib;
++    std::vector<int> years;
++    for (const Book& book : search(lib.db, "", 1, 20, "year").books) {
++        years.push_back(book.year.value_or(0));
++    }
++    CHECK(years == std::vector<int>{1813, 1932, 1945, 1949});
++}
++
++TEST(search_bad_page) {
++    Library lib;
++    CHECK_THROWS(std::invalid_argument, search(lib.db, "orwell", 0));
++    CHECK_THROWS(std::invalid_argument, search(lib.db, "orwell", 1, 500));
+ }
+ 
+ TEST(monthly_report_counts_by_member_and_book) {
+@@ -48,6 +71,21 @@ TEST(monthly_report_counts_by_member_and_book) {
+     CHECK(format_monthly(report).starts_with("Loans in 2026-03: 3"));
+ }
+ 
++TEST(overdue_report_most_overdue_first) {
++    Library lib;
++    lib.service.borrow(1, "9780451524935");
++    lib.today = START + days{5};
++    lib.service.borrow(2, "9780141439518");
++    const std::vector<OverdueRow> rows = overdue_report(lib.repo, START + days{30});
++    CHECK(rows.size() == 2);
++    CHECK(rows[0].member == "Ada Lovelace");
++    CHECK(rows[0].days == 9);
++    CHECK(rows[1].member == "Alan Turing");
++    CHECK(rows[1].days == 4);
++    CHECK(format_overdue(rows).starts_with("2 overdue loan(s):"));
++    CHECK(format_overdue({}) == "No overdue loan.");
++}
++
+ TEST(monthly_report_bad_month) {
+     Library lib;
+     CHECK_THROWS(std::invalid_argument, monthly_report(lib.repo, 2026, 13));
+diff --git a/tests/test_cli.cpp b/tests/test_cli.cpp
+index 845c748..431d8a2 100644
+--- a/tests/test_cli.cpp
++++ b/tests/test_cli.cpp
+@@ -41,7 +41,9 @@ TEST(cli_lend_and_return) {
+     const Result borrowed = shelfwise({"borrow", "1", "9780451524935"});
+     CHECK(borrowed.code == 0);
+     CHECK(borrowed.out.starts_with("loan 1, due "));
+-    CHECK(shelfwise({"return", "1"}) == Result{0, "loan 1 closed\n"});
++    const Result returned = shelfwise({"return", "1"});
++    CHECK(returned.code == 0);
++    CHECK(returned.out.starts_with("loan 1 closed"));
+ }
+ 
+ TEST(cli_errors_are_reported) {
+@@ -53,5 +55,21 @@ TEST(cli_errors_are_reported) {
+ TEST(cli_search) {
+     Cli shelfwise;
+     shelfwise({"add-book", "9780451524935", "Nineteen Eighty-Four", "George Orwell"});
+-    CHECK(shelfwise({"search", "eighty"}) == Result{0, "9780451524935  Nineteen Eighty-Four (George Orwell)\n"});
++    CHECK(shelfwise({"search", "eighty"}) ==
++          Result{0, "9780451524935  Nineteen Eighty-Four (George Orwell)\npage 1/1, 1 result(s)\n"});
++}
++
++TEST(cli_renew) {
++    Cli shelfwise;
++    shelfwise({"add-book", "9780451524935", "Nineteen Eighty-Four", "George Orwell"});
++    shelfwise({"add-member", "Ada Lovelace"});
++    shelfwise({"borrow", "1", "9780451524935"});
++    const Result renewed = shelfwise({"renew", "1"});
++    CHECK(renewed.code == 0);
++    CHECK(renewed.out.starts_with("loan 1 renewed, due "));
++}
++
++TEST(cli_remind_dry_run_with_nothing_overdue) {
++    Cli shelfwise;
++    CHECK(shelfwise({"remind", "--dry-run"}) == Result{0, "0 reminder(s) for 0 overdue loan(s)\n"});
+ }
+diff --git a/tests/test_loans.cpp b/tests/test_loans.cpp
+index 29c9282..ac338c9 100644
+--- a/tests/test_loans.cpp
++++ b/tests/test_loans.cpp
+@@ -40,19 +40,22 @@ TEST(refusal_leaves_no_transaction_open) {
+     CHECK(!lib.db.in_transaction());
+ }
+ 
+-TEST(on_time_return_has_no_fine) {
+-    Library lib;
++TEST(return_within_the_grace_period_has_no_fine) {
++    Settings settings;
++    settings.grace_days = 2;
++    Library lib(settings);
+     const Loan loan = lib.service.borrow(1, "9780451524935");
+-    lib.today = loan.due;
++    lib.today = loan.due + days{2};
+     CHECK(lib.service.return_book(loan.id).fine_cents == 0);
+ }
+ 
+-TEST(late_return_is_fined_per_day) {
++TEST(late_return_is_fined_per_day_after_the_grace_period) {
+     Settings settings;
+     settings.fine_per_day_cents = 30;
++    settings.grace_days = 2;
+     Library lib(settings);
+     const Loan loan = lib.service.borrow(1, "9780451524935");
+-    lib.today = loan.due + days{4};
++    lib.today = loan.due + days{6};
+     CHECK(lib.service.return_book(loan.id).fine_cents == 120);
+ }
+ 
+@@ -70,3 +73,36 @@ TEST(returned_copy_is_available_again) {
+     lib.service.return_book(loan.id);
+     CHECK(lib.repo.available_copies(loan.book_id) == 1);
+ }
++
++TEST(renewal_extends_from_the_due_date) {
++    Library lib;
++    const Loan loan = lib.service.borrow(1, "9780451524935");
++    lib.today = loan.due - days{3};
++    const Loan renewed = lib.service.renew(loan.id);
++    CHECK(renewed.due == loan.due + days{21});
++    CHECK(renewed.renewals == 1);
++}
++
++TEST(renewal_limit) {
++    Settings settings;
++    settings.max_renewals = 2;
++    Library lib(settings);
++    const Loan loan = lib.service.borrow(1, "9780451524935");
++    lib.service.renew(loan.id);
++    lib.service.renew(loan.id);
++    CHECK_THROWS(LoanRefused, lib.service.renew(loan.id));
++}
++
++TEST(overdue_loan_cannot_be_renewed) {
++    Library lib;
++    const Loan loan = lib.service.borrow(1, "9780451524935");
++    lib.today = loan.due + days{1};
++    CHECK_THROWS(LoanRefused, lib.service.renew(loan.id));
++}
++
++TEST(closed_loan_cannot_be_renewed) {
++    Library lib;
++    const Loan loan = lib.service.borrow(1, "9780451524935");
++    lib.service.return_book(loan.id);
++    CHECK_THROWS(LoanRefused, lib.service.renew(loan.id));
++}
+diff --git b/tests/test_notify.cpp b/tests/test_notify.cpp
+new file mode 100644
+index 0000000..d4402fa
+--- /dev/null
++++ b/tests/test_notify.cpp
+@@ -0,0 +1,68 @@
++#include "check.hpp"
++#include "helpers.hpp"
++#include "notify.hpp"
++
++#include <algorithm>
++
++using namespace shelfwise;
++
++namespace {
++
++// A database file the worker threads can open: two members with one overdue loan each.
++struct Overdue {
++    Overdue() {
++        Db db(database);
++        init(db);
++        Repository repo(db);
++        repo.add_book("9780451524935", "Nineteen Eighty-Four", "George Orwell", std::nullopt, 3);
++        repo.add_member("Ada Lovelace", "Ada@Example.org ", START);
++        repo.add_member("Alan Turing", "alan@example.org", START);
++        LoanService service(repo, Settings(), [] { return START; });
++        service.borrow(1, "9780451524935");
++        service.borrow(2, "9780451524935");
++    }
++
++    TempDir tmp;
++    std::string database = (tmp.path() / "lib.db").string();
++    Date late = START + std::chrono::days{30};
++};
++
++std::vector<std::string> recipients(const Outbox& outbox) {
++    std::vector<std::string> to;
++    for (const Message& message : outbox.sent()) {
++        to.push_back(message.to);
++    }
++    std::ranges::sort(to);
++    return to;
++}
++
++}  // namespace
++
++TEST(every_overdue_member_is_reminded) {
++    Overdue library;
++    Outbox outbox;
++    ReminderDispatcher dispatcher(library.database, outbox, 2);
++    CHECK(dispatcher.enqueue_overdue(library.late) == 2);
++    dispatcher.close();
++    CHECK(recipients(outbox) == std::vector<std::string>{"ada@example.org", "alan@example.org"});
++    CHECK(dispatcher.sent() == 2);
++}
++
++TEST(a_loan_queued_twice_is_reminded_once) {
++    Overdue library;
++    Outbox outbox;
++    ReminderDispatcher dispatcher(library.database, outbox, 1);
++    dispatcher.enqueue_overdue(library.late);
++    dispatcher.enqueue_overdue(library.late);
++    dispatcher.close();
++    CHECK(outbox.sent().size() == 2);
++}
++
++TEST(nothing_overdue) {
++    Overdue library;
++    Outbox outbox;
++    ReminderDispatcher dispatcher(library.database, outbox, 3);
++    CHECK(dispatcher.enqueue_overdue(START) == 0);
++    dispatcher.close();
++    CHECK(outbox.sent().empty());
++}

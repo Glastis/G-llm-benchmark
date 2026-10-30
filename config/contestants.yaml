@@ -1,0 +1,99 @@
+# Benchmark contestants (PLAN §3 and decisions §10.1 to §10.5, §10.15).
+# Read by bench/config.py (Contestant model).
+
+haiku:
+  label: Haiku normal
+  backend: anthropic
+  model: claude-haiku-5-5
+  effort: medium            # "normal" = medium (§10.3)
+
+haiku-low:
+  label: Haiku low
+  backend: anthropic
+  model: claude-haiku-5-5
+  effort: low
+
+haiku-xhigh:
+  label: Haiku extra
+  backend: anthropic
+  model: claude-haiku-5-5
+  effort: xhigh
+
+sonnet:
+  label: Sonnet normal
+  backend: anthropic
+  model: claude-sonnet-5-5
+  effort: medium            # the API default would be high, pinned to medium (§10.3)
+
+sonnet-low:
+  label: Sonnet low
+  backend: anthropic
+  model: claude-sonnet-5-5
+  effort: low
+
+sonnet-xhigh:
+  label: Sonnet extra
+  backend: anthropic
+  model: claude-sonnet-5-5
+  effort: xhigh
+
+strata:
+  label: Strata high
+  backend: strata
+  model: strata             # model name sent to the Strata server, as strata-agent does
+  strata_model: coder-iq1_m # must appear in the "model" field of /health
+  effort: high              # forwarding to be checked in smoke test #2
+  max_output_tokens: 65536  # 4,096, then 32,768 after the pilot (§10.25), then 65,536 (§10.27); also applies to the Strata workers
+  exclusive: true           # no other run in parallel
+
+opus-low:
+  label: Opus low
+  backend: anthropic
+  model: claude-opus-5-5
+  effort: low
+
+opus-haiku:
+  label: Opus extra → Haiku
+  backend: anthropic
+  model: claude-opus-5-5
+  effort: xhigh             # "Opus extra" = xhigh (§10.2)
+  preamble: config/orchestrator.md
+  workers: { contestant: haiku, via: subagent }   # subagent defined in config/agents/haiku-worker.json
+
+opus-strata:
+  label: Opus extra → Strata
+  backend: anthropic
+  model: claude-opus-5-5
+  effort: xhigh
+  preamble: config/orchestrator.md
+  workers: { contestant: strata, via: bash }      # bench/worker/bench-worker, one call at a time
+  exclusive: true
+
+sonnet-haiku:               # same as opus-haiku, with Sonnet as the orchestrator
+  label: Sonnet extra → Haiku
+  backend: anthropic
+  model: claude-sonnet-5-5
+  effort: xhigh
+  preamble: config/orchestrator.md
+  workers: { contestant: haiku, via: subagent }
+
+sonnet-strata:              # same as opus-strata, with Sonnet as the orchestrator
+  label: Sonnet extra → Strata
+  backend: anthropic
+  model: claude-sonnet-5-5
+  effort: xhigh
+  preamble: config/orchestrator.md
+  workers: { contestant: strata, via: bash }
+  exclusive: true
+
+opus-medium:                # Opus alone, "normal" like Haiku and Sonnet (§10.22)
+  label: Opus normal
+  backend: anthropic
+  model: claude-opus-5-5
+  effort: medium
+
+opus-xhigh:                 # Opus alone at the orchestrators' effort
+  label: Opus extra
+  backend: anthropic
+  model: claude-opus-5-5
+  effort: xhigh

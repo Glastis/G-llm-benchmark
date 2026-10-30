@@ -1,0 +1,12 @@
+# T2 — Architecture summary of ComputerCraft (PLAN §4, decision §10.9).
+# Fixture: snapshot of the (private) ComputerCraft repository at commit aa65141 (make_fixture.py).
+# It is not versioned (.gitignore).
+
+id: T2-archi-summary
+title: Architecture summary of ComputerCraft
+timeout_min: 300
+prompt: prompt.md
+fixture: fixture
+deliverables: [ARCHITECTURE.md]
+grader: grader/grade.py   # form, and references checked against the fixture (§10.28)
+judge: summary            # what the blind judge grades (§10.31)

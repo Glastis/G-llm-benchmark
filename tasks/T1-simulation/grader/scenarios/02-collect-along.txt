@@ -1,0 +1,12 @@
+# Passengers picked up on the way up; one going down waits for the reversal.
+floors 12
+elevators 1
+capacity 6
+travel 2
+door 3
+passenger 10 0 1 9
+passenger 11 1 4 8
+passenger 12 2 6 11
+passenger 13 3 5 2
+passenger 14 4 7 10
+passenger 15 30 9 0

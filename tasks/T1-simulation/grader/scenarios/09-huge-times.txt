@@ -1,0 +1,13 @@
+# Huge times and gaps: 64-bit arithmetic, no tick-by-tick clock. 10^15 is the largest valid time.
+floors 50
+elevators 2
+capacity 4
+travel 7
+door 9
+start 49 0
+passenger 900000000000001 999999999999997 0 49
+passenger 900000000000002 1000000000000000 49 0
+passenger 3 0 25 26
+passenger 900000000000004 999999999999990 10 40
+passenger 5 4000000000000 30 2
+passenger 6 4000000000005 2 30

@@ -1,0 +1,8 @@
+{
+  "worker": {
+    "description": "Implements one precise subtask delegated by the orchestrator: the files to create or change and how to check them.",
+    "prompt": "You implement exactly the subtask you are given, in the current workspace. Touch only the files it names. When you are done, reply with a short summary: the files you changed, how you checked them, and anything left undone.",
+    "model": "claude-haiku-5-5",
+    "effort": "medium"
+  }
+}

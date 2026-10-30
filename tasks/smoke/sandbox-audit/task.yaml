@@ -1,0 +1,10 @@
+# Smoke test #8 (ARCHITECTURE §9): an agent lists what it can see from inside the sandbox; the
+# checker then verifies that the bench repository, ~/.ssh, ~/.claude and the session sockets are not
+# visible.
+
+id: sandbox-audit
+title: List what is visible from inside the sandbox
+timeout_min: 10
+prompt: prompt.md
+fixture: fixture
+deliverables: [audit.txt]

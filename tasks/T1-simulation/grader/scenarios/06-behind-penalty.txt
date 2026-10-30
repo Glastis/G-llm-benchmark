@@ -1,0 +1,13 @@
+# Elevator 0 travels up past calls that fall behind it; elevator 1, idle and farther, gets them.
+floors 30
+elevators 2
+capacity 6
+travel 3
+door 2
+start 0 25
+passenger 1 0 0 29
+passenger 2 10 2 0
+passenger 3 11 1 5
+passenger 4 12 20 22
+passenger 5 30 4 3
+passenger 6 31 28 10

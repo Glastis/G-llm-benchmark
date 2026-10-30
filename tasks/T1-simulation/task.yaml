@@ -1,0 +1,11 @@
+# T1 — Elevator simulation in C++ (PLAN §4, decision §10.11).
+
+id: T1-simulation
+title: Discrete-event elevator simulation (C++20)
+timeout_min: 300
+prompt: prompt.md
+fixture: fixture
+grading_sheet: true   # bench collect drops GRADING-SHEET.md into each finished run, as grade.md
+deliverables: [CMakeLists.txt]   # the whole final workspace is archived and graded
+grader: grader/grade.py          # oracle traces, invalid input, sanitizers, performance (§10.28)
+judge: code                      # what the blind judge grades (§10.31)

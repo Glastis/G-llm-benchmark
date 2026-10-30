@@ -1,0 +1,9 @@
+# One elevator: a single passenger, then an idle elevator choosing its direction.
+floors 10
+elevators 1
+capacity 4
+travel 3
+door 2
+passenger 1 5 3 7
+passenger 2 100 9 0
+passenger 3 100 7 1

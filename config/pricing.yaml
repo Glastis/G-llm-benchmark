@@ -1,0 +1,21 @@
+# Prices in $ per million tokens, used to compute an API equivalent.
+# Subscription (PLAN §10.6): nothing is billed from these figures.
+# Source: official pricing page (platform.claude.com/docs/en/about-claude/pricing), checked on 2026-10-25,
+# and cross-checked against the costUSD Claude Code reported on the first real runs (s01).
+# null = unknown price: `bench validate` flags it, and the cost computation fails until it is filled in.
+
+as_of: 2026-10-25
+unit: usd_per_mtok
+
+models:
+  claude-opus-5-5:   { input: 4.00, output: 20.00, cache_read: 0.20 }   # cache reads at 0.05 × input
+  claude-sonnet-5-5: { input: 2.00, output: 10.00, cache_read: 0.10 }   # cache reads at 0.05 × input; matches run s01_hello_sonnet_r1
+  claude-haiku-5-5:
+    tiers:                  # the price depends on the prompt size of each request
+      - { max_prompt_tokens: 100000, input: 0.10, output: 0.50, cache_read: 0.01 }   # matches run s01_hello_haiku_r1
+      - { input: 0.50, output: 2.50, cache_read: 0.05 }   # prompt size counts input, cache reads and cache writes
+  strata:            { input: 0, output: 0, cache_read: 0 }
+
+cache_write_multiplier: { ttl_5m: 1.25, ttl_1h: 2.0 }   # same for every model on the pricing page
+
+electricity_eur_per_kwh: 0.2001   # the author's household rate, incl. tax (Strata GPU energy, display only)

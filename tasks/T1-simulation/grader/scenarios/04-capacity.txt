@@ -1,0 +1,13 @@
+# Capacity 2: the passengers left behind stay assigned and wait for the next pass.
+floors 8
+elevators 1
+capacity 2
+travel 2
+door 1
+passenger 1 0 0 5
+passenger 2 0 0 6
+passenger 3 0 0 7
+passenger 4 0 0 4
+passenger 5 1 0 3
+passenger 6 3 2 6
+passenger 7 4 6 0

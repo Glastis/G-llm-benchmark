@@ -1,0 +1,6 @@
+floors 10
+elevators 2
+capacity 4
+travel 2
+door 3
+passenger 1 1e3 1 2

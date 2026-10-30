@@ -1,0 +1,12 @@
+# T4 — Mini city builder with provided tiles (PLAN §4, decisions §10.10 and §10.21).
+# Tiles ready: fixture/assets/{opaque,transparent}/.
+
+id: T4-game
+title: Mini city builder in C++ with SDL2 and the provided tiles
+timeout_min: 300
+prompt: prompt.md
+fixture: fixture
+grading_sheet: true   # bench collect drops GRADING-SHEET.md into each finished run, as grade.md
+deliverables: [CMakeLists.txt]   # the whole final workspace is archived
+grader: grader/grade.py          # test mode against the oracle, tiles, random input, code metrics (§10.30)
+judge: code                      # what the blind judge grades (§10.31)

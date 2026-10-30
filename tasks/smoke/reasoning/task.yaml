@@ -1,0 +1,9 @@
+# Smoke test #2 and #4 (ARCHITECTURE §9): a short question that takes some thinking, to compare
+# output and thinking tokens between effort levels. Expected answer: 4001.
+
+id: reasoning
+title: Count integers by divisibility, without running code
+timeout_min: 10
+prompt: prompt.md
+fixture: fixture
+deliverables: [answer.txt]

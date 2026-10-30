@@ -1,0 +1,19 @@
+2 0 1 up out=- in=10
+11 0 4 up out=- in=11
+18 0 6 up out=- in=12
+23 0 7 up out=- in=14
+28 0 8 up out=11 in=-
+33 0 9 up out=10 in=-
+38 0 10 up out=14 in=-
+43 0 11 up out=12 in=-
+50 0 9 down out=- in=15
+61 0 5 down out=- in=13
+70 0 2 down out=13 in=-
+77 0 0 down out=15 in=-
+passenger 10 elevator 0 wait 2 ride 31
+passenger 11 elevator 0 wait 10 ride 17
+passenger 12 elevator 0 wait 16 ride 25
+passenger 13 elevator 0 wait 58 ride 9
+passenger 14 elevator 0 wait 19 ride 15
+passenger 15 elevator 0 wait 20 ride 27
+summary passengers 6 makespan 77 avg_wait 20.83 max_wait 58 avg_ride 20.67

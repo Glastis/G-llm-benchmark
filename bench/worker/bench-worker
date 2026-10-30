@@ -1,0 +1,54 @@
+#!/bin/sh
+# bench-worker: one Strata worker call for the opus-strata and sonnet-strata contestants (ARCHITECTURE §6).
+# Called by the orchestrator with the Bash tool, inside the run's sandbox:
+#   bench-worker "subtask"
+# Same environment as the strata-agent script, without depending on it.
+# Calls are serialized with flock: Strata never receives two worker calls at once.
+# Never starts a model: the Coder must already be serving.
+set -eu
+
+URL="${STRATA_URL:-http://127.0.0.1:8080}"
+: "${BENCH_RUN_DIR:?bench-worker: BENCH_RUN_DIR is not set}"
+if [ $# -ne 1 ]; then
+  echo 'usage: bench-worker "subtask"' >&2
+  exit 2
+fi
+
+health=$(curl -s -m 5 "$URL/health" || true)
+case "$health" in
+  *'"loaded": true'*) ;;
+  *) echo "bench-worker: no Strata model is serving on $URL" >&2; exit 3 ;;
+esac
+case "$health" in
+  *coder*) ;;
+  *) echo "bench-worker: the model serving on $URL is not the Strata Coder" >&2; exit 4 ;;
+esac
+
+mkdir -p "$BENCH_RUN_DIR/workers"
+exec 9>"$BENCH_RUN_DIR/workers/.lock"
+flock 9
+n=$(find "$BENCH_RUN_DIR/workers" -maxdepth 1 -name '*.jsonl' | wc -l)
+log=$(printf '%s/workers/%03d.jsonl' "$BENCH_RUN_DIR" $((n + 1)))
+
+ctx=$(printf '%s' "$health" | sed -n 's/.*"max_context": \([0-9][0-9]*\).*/\1/p')
+export ANTHROPIC_BASE_URL="$URL"
+export ANTHROPIC_AUTH_TOKEN="${STRATA_API_KEY:-strata-local}"
+export ANTHROPIC_MODEL=strata
+export ANTHROPIC_SMALL_FAST_MODEL=strata
+export ANTHROPIC_DEFAULT_SONNET_MODEL=strata
+export ANTHROPIC_DEFAULT_OPUS_MODEL=strata
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=strata
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS="${ctx:-131072}"
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS="${BENCH_STRATA_MAX_OUTPUT:-4096}"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export DISABLE_AUTOUPDATER=1
+export DISABLE_TELEMETRY=1
+# The subscription token never goes to the local server.
+unset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN
+
+claude -p "$1" --model strata --effort "${BENCH_STRATA_EFFORT:-high}" \
+  --output-format stream-json --verbose --permission-mode bypassPermissions --strict-mcp-config > "$log"
+
+# What the orchestrator reads: the worker's final summary.
+summary=$(jq -r 'select(.type == "result") | .result // empty' "$log")
+printf '%s\n' "${summary:-bench-worker: the worker returned no result (log: $log)}"
