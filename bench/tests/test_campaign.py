@@ -16,7 +16,7 @@ def test_exclusive_runs_form_one_block_at_the_end():
     flags = [r.exclusive for r in runs]
     first = flags.index(True)
     assert all(flags[first:]) and not any(flags[:first])
-    assert {r.contestant for r in runs[first:]} == {"strata_coder-medium", "strata_coder-high", "opus-strata", "sonnet-strata"}
+    assert {r.contestant for r in runs[first:]} == {"strata_coder-low", "strata_coder-medium", "strata_coder-high", "opus-strata", "sonnet-strata"}
 
 
 def test_neighbours_differ_outside_the_last_runs():

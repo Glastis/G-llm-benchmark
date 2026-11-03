@@ -40,7 +40,7 @@ benchmark_ai/
 ├── PLAN.md · ARCHITECTURE.md · GRADING.md · GRADING-SHEET.md · README.md · .gitignore
 ├── pyproject.toml                  # uv, Python ≥ 3.12, `bench` command
 ├── config/
-│   ├── contestants.yaml            # the 15 contestants
+│   ├── contestants.yaml            # the 16 contestants
 │   ├── pricing.yaml                # dated $/MTok, tiers
 │   ├── orchestrator.md             # preamble of the orchestrated contestants: common core + one paragraph per mechanism
 │   ├── judge/{code,summary}.md     # instructions of the blind judge; code.md takes GRADING.md's code grid as is
@@ -81,7 +81,7 @@ benchmark_ai/
 
 The files are the source of truth. `bench validate` loads them with strict schemas (`bench/config.py`), then cross-checks them: models present in the prices, workers that exist, a preamble with the right paragraph, task statements and fixtures present.
 
-- **[`config/contestants.yaml`](config/contestants.yaml)**: the 15 contestants, with model, effort, `exclusive`, `workers: {contestant, via}` and `max_output_tokens` for Strata.
+- **[`config/contestants.yaml`](config/contestants.yaml)**: the 16 contestants, with model, effort, `exclusive`, `workers: {contestant, via}` and `max_output_tokens` for Strata.
 - **[`config/pricing.yaml`](config/pricing.yaml)**:
   - dated prices, with the Haiku tiers;
   - an unknown price stays `null`: `validate` flags it, and the cost computation fails instead of counting 0. Every price was checked against the official pricing page on 2026-10-25. The cross-check with Claude Code (§8) caught one error on the first Sonnet run: Sonnet 5.5 cache reads cost $0.10/MTok (0.05 × input, like Opus 5.5), not $0.20.

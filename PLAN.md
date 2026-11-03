@@ -37,6 +37,7 @@ Final deliverable: for each task, the deliverables of every contestant, compared
 | `sonnet` | Sonnet normal | `claude-sonnet-5-5` | `medium` | yes |
 | `sonnet-low` | Sonnet low | `claude-sonnet-5-5` | `low` | yes |
 | `sonnet-xhigh` | Sonnet extra | `claude-sonnet-5-5` | `xhigh` | yes |
+| `strata_coder-low` | Strata Coder low | Strata Coder iq1_m (local) | low reasoning | **$0** |
 | `strata_coder-medium` | Strata Coder medium | Strata Coder iq1_m (local) | medium reasoning | **$0** |
 | `strata_coder-high` | Strata Coder high | Strata Coder iq1_m (local) | high reasoning (the server maps it to the Coder's `xhigh`, so no separate `xhigh` contestant) | **$0** |
 | `opus-low` | Opus low | `claude-opus-5-5` | `low` | yes |

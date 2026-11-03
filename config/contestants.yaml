@@ -37,6 +37,15 @@ sonnet-xhigh:
   model: claude-sonnet-5-5
   effort: xhigh
 
+strata_coder-low:
+  label: Strata Coder low
+  backend: strata
+  model: strata             # model name sent to the Strata server, as strata-agent does
+  strata_model: coder-iq1_m # must appear in the "model" field of /health
+  effort: low
+  max_output_tokens: 65536
+  exclusive: true           # no other run in parallel
+
 strata_coder-medium:
   label: Strata Coder medium
   backend: strata
