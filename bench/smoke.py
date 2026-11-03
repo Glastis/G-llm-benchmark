@@ -54,9 +54,9 @@ def variants(b: Bundle) -> dict[str, Contestant]:
     return {
         "haiku@low": v("haiku", "low", effort="low"),
         "haiku@xhigh": v("haiku", "xhigh", effort="xhigh"),
-        "strata@low": v("strata", "low", effort="low"),
-        "strata@4096": v("strata", "4096", max_output_tokens=4096),
-        "strata@16384": v("strata", "16384", max_output_tokens=16384),
+        "strata_coder-high@low": v("strata_coder-high", "low", effort="low"),
+        "strata_coder-high@4096": v("strata_coder-high", "4096", max_output_tokens=4096),
+        "strata_coder-high@16384": v("strata_coder-high", "16384", max_output_tokens=16384),
     }
 
 
@@ -97,7 +97,7 @@ def _answer(r: Results, contestant: str) -> str:
 
 def verdict_effort(r: Results) -> Verdict:
     lines, ok = [], True
-    for low, high in (("haiku@low", "haiku@xhigh"), ("strata@low", "strata")):
+    for low, high in (("haiku@low", "haiku@xhigh"), ("strata_coder-high@low", "strata_coder-high")):
         ml, mh = r.metrics("reasoning", low), r.metrics("reasoning", high)
         if not ml or not mh:
             return Verdict("REVIEW", [f"missing run: {low if not ml else high}"])
@@ -144,7 +144,7 @@ def check_cpp(sim: Path, scratch: Path) -> tuple[bool, str]:
 
 def verdict_strata_cap(r: Results) -> Verdict:
     lines = []
-    for variant in ("strata@4096", "strata@16384"):
+    for variant in ("strata_coder-high@4096", "strata_coder-high@16384"):
         for rep in (1, 2, 3):
             m = r.metrics("big-file", variant, rep)
             if not m:
@@ -224,12 +224,12 @@ def verdict_sandbox(r: Results) -> Verdict:
 CHECKS = [
     Check("effort", 2, "Effort is actually applied (Claude and Strata)",
           (("reasoning", "haiku@low", 1), ("reasoning", "haiku", 1), ("reasoning", "haiku@xhigh", 1),
-           ("reasoning", "strata@low", 1), ("reasoning", "strata", 1)), verdict_effort),
+           ("reasoning", "strata_coder-high@low", 1), ("reasoning", "strata_coder-high", 1)), verdict_effort),
     Check("subagent-effort", 4, "Effort of the Haiku subagents",
           (("reasoning", "opus-haiku", 1), ("reasoning", "haiku", 1), ("reasoning", "haiku@xhigh", 1)),
           verdict_subagent_effort),
     Check("strata-cap", 5, "Strata output cap: 4,096 versus 16,384",
-          (("big-file", "strata@4096", 3), ("big-file", "strata@16384", 3)), verdict_strata_cap),
+          (("big-file", "strata_coder-high@4096", 3), ("big-file", "strata_coder-high@16384", 3)), verdict_strata_cap),
     Check("blank-config", 7, "The configuration is blank", (), verdict_blank_config),
     Check("sandbox", 8, "The sandbox is tight", (("sandbox-audit", "haiku", 1),), verdict_sandbox),
 ]

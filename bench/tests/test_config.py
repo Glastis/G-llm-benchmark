@@ -4,8 +4,8 @@ from bench.config import ROOT, load_all, orchestrator_preamble
 def test_config_has_no_errors():
     b = load_all()
     assert b.errors == []
-    assert set(b.contestants) == {"haiku", "haiku-low", "haiku-xhigh", "sonnet", "sonnet-low", "sonnet-xhigh", "strata", "opus-low",
-                                "opus-haiku", "opus-strata", "sonnet-haiku", "sonnet-strata", "opus-medium", "opus-xhigh"}
+    assert set(b.contestants) == {"haiku", "haiku-low", "haiku-xhigh", "sonnet", "sonnet-low", "sonnet-xhigh", "strata_coder-medium", "strata_coder-high",
+                                "opus-low", "opus-haiku", "opus-strata", "sonnet-haiku", "sonnet-strata", "opus-medium", "opus-xhigh"}
     assert set(b.tasks) == {"T1-simulation", "T2-archi-summary", "T3-pr-review", "T4-game"}
 
 

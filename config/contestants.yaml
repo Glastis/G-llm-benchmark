@@ -37,8 +37,17 @@ sonnet-xhigh:
   model: claude-sonnet-5-5
   effort: xhigh
 
-strata:
-  label: Strata high
+strata_coder-medium:
+  label: Strata Coder medium
+  backend: strata
+  model: strata             # model name sent to the Strata server, as strata-agent does
+  strata_model: coder-iq1_m # must appear in the "model" field of /health
+  effort: medium
+  max_output_tokens: 65536
+  exclusive: true           # no other run in parallel
+
+strata_coder-high:          # no xhigh: the Strata server already maps high to the Coder's xhigh
+  label: Strata Coder high
   backend: strata
   model: strata             # model name sent to the Strata server, as strata-agent does
   strata_model: coder-iq1_m # must appear in the "model" field of /health
@@ -66,7 +75,7 @@ opus-strata:
   model: claude-opus-5-5
   effort: xhigh
   preamble: config/orchestrator.md
-  workers: { contestant: strata, via: bash }      # bench/worker/bench-worker, one call at a time
+  workers: { contestant: strata_coder-high, via: bash }      # bench/worker/bench-worker, one call at a time
   exclusive: true
 
 sonnet-haiku:               # same as opus-haiku, with Sonnet as the orchestrator
@@ -83,7 +92,7 @@ sonnet-strata:              # same as opus-strata, with Sonnet as the orchestrat
   model: claude-sonnet-5-5
   effort: xhigh
   preamble: config/orchestrator.md
-  workers: { contestant: strata, via: bash }
+  workers: { contestant: strata_coder-high, via: bash }
   exclusive: true
 
 opus-medium:                # Opus alone, "normal" like Haiku and Sonnet (§10.22)

@@ -31,17 +31,17 @@ def metrics(output: int, model: str = "claude-haiku-5-5", **extra) -> dict:
 
 def test_plan_dedupes_runs_and_puts_strata_last():
     specs = smoke.plan(["effort", "subagent-effort"], B)
-    assert [s.contestant for s in specs][-2:] in (["strata@low", "strata"], ["strata", "strata@low"])
-    assert sorted(s.contestant for s in specs) == sorted(["haiku@low", "haiku", "haiku@xhigh", "opus-haiku", "strata@low", "strata"])
+    assert [s.contestant for s in specs][-2:] in (["strata_coder-high@low", "strata_coder-high"], ["strata_coder-high", "strata_coder-high@low"])
+    assert sorted(s.contestant for s in specs) == sorted(["haiku@low", "haiku", "haiku@xhigh", "opus-haiku", "strata_coder-high@low", "strata_coder-high"])
 
 
 def test_effort_verdict(tmp_path):
-    for contestant, out in (("haiku@low", 100), ("haiku@xhigh", 400), ("strata@low", 200), ("strata", 900)):
+    for contestant, out in (("haiku@low", 100), ("haiku@xhigh", 400), ("strata_coder-high@low", 200), ("strata_coder-high", 900)):
         write_run(tmp_path, "reasoning", contestant, metrics(out), {"answer.txt": "4001\n"})
     v = smoke.verdict_effort(smoke.Results(B, tmp_path, tmp_path / "ws"))
     assert v.status == "PASS" and "answer 4001" in v.lines[0]
     write_run(tmp_path / "x", "reasoning", "haiku@low", metrics(500))
-    for contestant, out in (("haiku@xhigh", 400), ("strata@low", 200), ("strata", 900)):
+    for contestant, out in (("haiku@xhigh", 400), ("strata_coder-high@low", 200), ("strata_coder-high", 900)):
         write_run(tmp_path / "x", "reasoning", contestant, metrics(out))
     assert smoke.verdict_effort(smoke.Results(B, tmp_path / "x", tmp_path / "ws")).status == "REVIEW"
 
