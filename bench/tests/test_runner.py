@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from bench.backends.anthropic import TOKEN_ENV, NotLoggedIn
 from bench.campaign import RunSpec
 from bench.collect import collect, metrics_for
 from bench.config import load_all
@@ -90,7 +91,8 @@ def test_unwritten_prompt_is_refused(tmp_path):
                 ws_root=tmp_path / "ws", runs_root=tmp_path / "runs")
 
 
-def test_campaign_skips_finished_runs_and_sets_aside_failed_ones(tmp_path):
+def test_campaign_skips_finished_runs_and_sets_aside_failed_ones(tmp_path, monkeypatch):
+    monkeypatch.setenv(TOKEN_ENV, "test-token")
     bundle = load_all(make_task(tmp_path, "ok"))
     kw = dict(claude_bin=FAKE, sandbox=False, ws_root=tmp_path / "ws", runs_root=tmp_path / "runs",
               contestants={"haiku": bundle.contestants["haiku"]}, echo=lambda s: None)
@@ -104,6 +106,15 @@ def test_campaign_skips_finished_runs_and_sets_aside_failed_ones(tmp_path):
     assert list(p2.run.parent.glob("r2.attempt-*"))          # the previous attempt is set aside
     assert len(collect("c00", bundle, tmp_path / "runs")) == 2
     assert not list((tmp_path / "runs").glob("**/grade.md"))   # the task has no grading sheet
+
+
+def test_campaign_stops_before_an_anthropic_run_without_the_token(tmp_path, monkeypatch):
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    bundle = load_all(make_task(tmp_path, "ok"))
+    with pytest.raises(NotLoggedIn):
+        run_campaign("c00", bundle, reps=1, claude_bin=FAKE, sandbox=False, ws_root=tmp_path / "ws",
+                     runs_root=tmp_path / "runs", contestants={"haiku": bundle.contestants["haiku"]}, echo=lambda s: None)
+    assert not (tmp_path / "runs").exists() and not (tmp_path / "ws").exists()   # nothing started, so nothing is final
 
 
 def test_collect_fills_a_grading_sheet_and_never_overwrites_it(tmp_path):

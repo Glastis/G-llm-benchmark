@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
-from bench.backends import strata
+from bench.backends import anthropic, strata
 from bench.campaign import RunSpec
 from bench.collect import collect
 from bench.config import ROOT, Bundle, Contestant, load_tasks
@@ -250,11 +250,14 @@ def plan(check_ids: list[str], b: Bundle) -> list[RunSpec]:
 
 def run(check_ids: list[str], b: Bundle, echo: Callable[[str], None] = print, **kw) -> None:
     """Launches the missing runs of the selected checks, then collects them. Stops on the
-    subscription limit or when Strata is not serving."""
+    subscription limit, when the subscription token is missing or when Strata is not serving."""
     roots = {k: kw[k] for k in ("ws_root", "runs_root") if k in kw}
     specs = [s for s in plan(check_ids, b) if status_of(paths_for(s, **roots)) not in FINAL]
     for i, spec in enumerate(specs, 1):
-        side = strata_side(b.contestants[spec.contestant], b)
+        c = b.contestants[spec.contestant]
+        if c.backend == "anthropic":
+            anthropic.ensure_token()
+        side = strata_side(c, b)
         health = strata.ensure_ready(side) if side else None
         echo(f"[{i}/{len(specs)}] {spec.run_id} …")
         status = run_one(spec, b, health, **kw)

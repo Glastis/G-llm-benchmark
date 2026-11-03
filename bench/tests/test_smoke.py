@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from bench import smoke
+from bench.backends.anthropic import TOKEN_ENV
 from bench.collect import strata_log_stats
 from bench.config import load_all
 
@@ -85,7 +86,8 @@ def test_strata_log_stats(tmp_path):
     assert s["finish_reasons"] == {"stop": 1, "length": 1} and s["thinking_cut"] == 1 and s["max_tokens"] == 4096
 
 
-def test_sandbox_check_end_to_end_with_the_fake_claude(tmp_path):
+def test_sandbox_check_end_to_end_with_the_fake_claude(tmp_path, monkeypatch):
+    monkeypatch.setenv(TOKEN_ENV, "test-token")
     kw = dict(claude_bin=FAKE, sandbox=False, ws_root=tmp_path / "ws", runs_root=tmp_path / "runs")
     smoke.run(["sandbox"], B, echo=lambda s: None, **kw)
     v = smoke.report(["sandbox"], B, runs_root=tmp_path / "runs", ws_root=tmp_path / "ws")["sandbox"]

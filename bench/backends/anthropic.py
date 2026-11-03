@@ -18,6 +18,17 @@ COMMON_ENV = {
 }
 
 
+class NotLoggedIn(RuntimeError):
+    pass
+
+
+def ensure_token() -> None:
+    """Checks, outside the clock, that the subscription token is set. The run's CLAUDE_CONFIG_DIR is
+    blank, so without it Claude Code answers "Not logged in" and the run ends as a final error."""
+    if not os.environ.get(TOKEN_ENV):
+        raise NotLoggedIn(f"{TOKEN_ENV} is not set: export the subscription token (claude setup-token), then launch again")
+
+
 def base_argv(model: str, effort: str) -> list[str]:
     return [
         "claude", "-p",                             # the statement comes on stdin: Firejail caps arguments at 4,128 characters

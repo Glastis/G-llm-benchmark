@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 
+from bench.backends.anthropic import NotLoggedIn
 from bench.backends.strata import NotServing
 from bench.campaign import plan_runs
 from bench import grade as grade_lib
@@ -106,7 +107,7 @@ def smoke(
                 raise typer.Exit(1)
             try:
                 smoke_lib.run(ids, b, echo=typer.echo)
-            except (QuotaReached, NotServing, RunError) as e:
+            except (QuotaReached, NotLoggedIn, NotServing, RunError) as e:
                 typer.echo(f"stopped: {e}", err=True)
                 raise typer.Exit(3)
     for cid, verdict in smoke_lib.report(ids, b).items():
@@ -144,7 +145,7 @@ def run(
         raise typer.Exit(1)
     try:
         run_campaign(campaign, b, reps, seed, contestants=chosen, tasks=tasks, echo=typer.echo)
-    except (QuotaReached, NotServing, RunError) as e:
+    except (QuotaReached, NotLoggedIn, NotServing, RunError) as e:
         typer.echo(f"stopped: {e}", err=True)
         raise typer.Exit(3)
     finally:   # even after a stop, the finished runs get their metrics and grading sheets
@@ -204,7 +205,7 @@ def judge(
         raise typer.Exit(1)
     try:
         judge_lib.judge_campaign(todo, b, force, echo=typer.echo)
-    except (QuotaReached, RunError) as e:
+    except (QuotaReached, NotLoggedIn, RunError) as e:
         typer.echo(f"stopped: {e}", err=True)
         raise typer.Exit(3)
 

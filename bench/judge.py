@@ -185,9 +185,11 @@ def record(run_dir: Path, task: Task, number: int, result: dict, fresh: bool = F
 
 def judge_campaign(todo: list[tuple[int, Path, Task]], bundle: Bundle, force: bool = False,
                    echo: Callable[[str], None] = print, **kw) -> None:
-    """Runs the passes of `pending`. Stops on the subscription limit: the next launch resumes."""
+    """Runs the passes of `pending`. Stops on the subscription limit or when the subscription token
+    is missing: the next launch resumes."""
     reset = set()
     for i, (number, run_dir, task) in enumerate(todo, 1):
+        anthropic.ensure_token()
         name = "_".join(run_dir.parts[-3:])
         echo(f"[{i}/{len(todo)}] {name} pass {number} …")
         result = judge_once(task, run_dir, bundle, number, **kw)

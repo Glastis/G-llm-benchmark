@@ -99,7 +99,7 @@ Task statements and agent-facing prompts are in English, the language every cont
    - `bench run` lists the runs to launch and asks for confirmation before starting. At the end, even after a stop, it runs `bench collect` on the campaign. There is no cost cap (PLAN §10.7): `collect` only flags runs that cost more than 3 times their contestant's median in API equivalent.
 2. **Workspace**: `fixture/` is copied to `~/bench-ws/<run_id>/`, then `git init` and an initial commit. The final diff measures what the agent produced.
 3. **Backend preparation**:
-   - Anthropic: nothing to do.
+   - Anthropic: `CLAUDE_CODE_OAUTH_TOKEN` must be set, checked outside the clock before each run (and each judge pass). Without it, Claude Code answers "Not logged in" and the run would end as a final error, so the campaign stops before the clock starts and asks to export the token.
    - Strata: `/health` must answer with the right model loaded, and the check happens outside the clock. The harness **never** starts a model, since loading can freeze the PC for 1 to 3 minutes. If the Coder is not serving, the run stops before the clock starts and asks to launch `strata-coder`. Since the exclusive block comes at the end of the campaign, that is a single intervention. The server log is read during the run (prefill and decode throughput).
 4. **Launch**, in the workspace and under Firejail (`backends/anthropic.py` and `backends/strata.py` build the command):
    ```

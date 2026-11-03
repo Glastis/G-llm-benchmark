@@ -283,8 +283,9 @@ def run_one(spec: RunSpec, bundle: Bundle, health: dict | None = None, *, claude
 def run_campaign(campaign: str, bundle: Bundle, reps: int, seed: int = 0, *,
                  contestants: dict | None = None, tasks: dict | None = None,
                  echo: Callable[[str], None] = print, **kw) -> dict[str, str]:
-    """Runs the unfinished runs in plan order. Stops on the subscription limit or when Strata is
-    not serving: finished runs are kept, and the next launch resumes from there."""
+    """Runs the unfinished runs in plan order. Stops on the subscription limit, when the subscription
+    token is missing or when Strata is not serving: finished runs are kept, and the next launch
+    resumes from there."""
     specs = plan_runs(campaign, contestants or bundle.contestants, tasks or bundle.tasks, reps, seed)
     done = {}
     for i, spec in enumerate(specs, 1):
@@ -292,7 +293,10 @@ def run_campaign(campaign: str, bundle: Bundle, reps: int, seed: int = 0, *,
         if (st := status_of(p)) in FINAL:
             done[spec.run_id] = st
             continue
-        side = strata_side(bundle.contestants[spec.contestant], bundle)
+        c = bundle.contestants[spec.contestant]
+        if c.backend == "anthropic":
+            anthropic.ensure_token()                           # outside the clock; NotLoggedIn stops everything
+        side = strata_side(c, bundle)
         health = strata.ensure_ready(side) if side else None   # outside the clock; NotServing stops everything
         echo(f"[{i}/{len(specs)}] {spec.run_id} …")
         done[spec.run_id] = st = run_one(spec, bundle, health, **kw)
