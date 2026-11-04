@@ -45,6 +45,7 @@ elif "MODE=quota" in prompt:
 else:
     if "_judge/judgement.json" in prompt:   # the blind judge
         names = ["Truth", "Completeness"] if "Truth" in prompt else ["Readability", "Architecture", "Factoring", "Cleanliness", "Safety"]
+        names += ["Creativity"] if "**Creativity**" in prompt else []
         seen = "\n".join(p.read_text(errors="replace") for p in Path(".").rglob("*") if p.is_file())
         Path("_judge/judgement.json").write_text(json.dumps({"criteria": {n: {"score": 7 if "MODE=judge-low" not in seen else 3,
                                                                                 "reasons": "fake"} for n in names}}))

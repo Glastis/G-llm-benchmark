@@ -9,8 +9,11 @@ Scores (0 if the build fails):
   similarity of the stop lines + 0.1 × summary line;
 - working: 10 × the share of the robustness checks passed: each invalid input and each command-line
   error gives a single `error:` line and exit code 2, each hidden scenario and the performance one
-  ends without a crash or a timeout.
-Performance (time on 200,000 passengers) and resources (peak RAM) stay raw figures.
+  ends without a crash or a timeout;
+- performance: the time on 200,000 passengers, 10 at PERF_BEST_MS, 0 at the statement's one second,
+  on a log scale; 0 when the summary is wrong;
+- resources: the peak RAM of the same run, 10 at RAM_BEST_MB, 0 at RAM_WORST_MB, on a log scale; 0
+  when the summary is wrong.
 """
 
 from __future__ import annotations
@@ -29,7 +32,7 @@ sys.path.insert(0, str(HERE))
 from scenarios import perf_scenario  # noqa: E402
 
 from bench import cpp_metrics  # noqa: E402
-from bench.grade import MEASURE, created_files  # noqa: E402
+from bench.grade import FAILED_BUILD_SHEET, MEASURE, created_files, log_score  # noqa: E402
 from bench.runner import sandbox_exec  # noqa: E402
 
 SCENARIOS = sorted((HERE / "scenarios").glob("*.txt"))
@@ -39,6 +42,8 @@ FIXTURE = HERE.parent / "fixture"
 MEMORY_KB = 4_000_000          # address-space limit of the agent's program (no ASan)
 ASAN_RSS_MB = 2048
 PERF_LIMIT_MS = 1000           # the statement's "under one second"
+PERF_BEST_MS = 100             # bounds of the scores, set on the spread of c01 and c02 (GRADING.md)
+RAM_BEST_MB, RAM_WORST_MB = 25, 250
 SANITIZERS = "-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer"
 CLI_ERRORS = {                 # command-line errors: arguments after build/sim
     "no-arguments": "",
@@ -185,6 +190,14 @@ def _stage_inputs(g: Path) -> None:
     (g / "measure.py").write_text(MEASURE)
 
 
+def resource_scores(figures: dict) -> dict:
+    """Performance and resources, from the run on 200,000 passengers: 0 without the right summary."""
+    if not figures["perf_summary_ok"]:
+        return {"performance": 0.0, "resources": 0.0}
+    return {"performance": log_score(figures["perf_ms"], PERF_BEST_MS, PERF_LIMIT_MS),
+            "resources": log_score(figures["peak_ram_mb"], RAM_BEST_MB, RAM_WORST_MB)}
+
+
 def _handled(rc_file: Path, err_file: Path) -> bool:
     return _rc(rc_file) == 2 and _read(err_file).startswith("error:")
 
@@ -192,7 +205,7 @@ def _handled(rc_file: Path, err_file: Path) -> bool:
 def _sheet(built: bool, scores: dict, figures: dict) -> dict:
     """The cells of grade.md. When the build fails, Working is 0 and the rest N/A (GRADING.md)."""
     if not built:
-        return {"Builds with the exact command": ["no"], "Working": ["0"]}
+        return FAILED_BUILD_SHEET
     notes = cpp_metrics.notes(figures["code"])
     perf = figures["perf_ms"]
     perf_text = "timeout" if perf is None else f"{perf} ms" + ("" if figures["perf_summary_ok"] else ", wrong summary")
@@ -201,8 +214,9 @@ def _sheet(built: bool, scores: dict, figures: dict) -> dict:
         "Builds with the exact command": ["yes"],
         "Working": [f"{scores['working']:g}"],
         "Following the statement": [f"{scores['statement']:g}"],
-        "Performance": [None, perf_text],
-        "Resources": [None, f"{'?' if ram is None else ram} MB peak RAM"],
+        "Creativity": ["N/A"],
+        "Performance": [f"{scores['performance']:g}", perf_text],
+        "Resources": [f"{scores['resources']:g}", f"{'?' if ram is None else ram} MB peak RAM"],
         **{row: [None, note] for row, note in notes.items()},
         "Safety": [None, f"sanitizers clean on {figures['sanitizer_clean']}; {notes['Safety']}"],
     }
@@ -242,8 +256,6 @@ def grade(tree: Path) -> dict:
     cli_ok = built and _rc(g / "example.rc") == 0 and bool(example) and SUMMARY_LINE.fullmatch(example[-1]) is not None \
         and all(STOP_LINE.fullmatch(x) or PASSENGER_LINE.fullmatch(x) for x in example[:-1])
 
-    scores = {"statement": round(10 * correctness, 1) if built else 0.0,
-              "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0}
     figures = {
         "exact_scenarios": f"{sum(s.get('exact', False) for s in scenarios.values())}/{len(SCENARIOS)}",
         "perf_ms": int(perf_ms) if perf_rc == "0" and perf_ms.isdigit() else None,
@@ -253,6 +265,9 @@ def grade(tree: Path) -> dict:
         "sanitizer_clean": f"{asan_clean}/{len(SCENARIOS)}" if _rc(g / "asan.rc") == 0 else "no sanitizer build",
         "code": cpp_metrics.measure(tree, g, created_files(tree, FIXTURE)),
     }
+    scores = {"statement": round(10 * correctness, 1) if built else 0.0,
+              "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0,
+              **resource_scores(figures)}
     return {
         "scores": scores,
         "checks": {

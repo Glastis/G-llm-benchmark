@@ -7,12 +7,17 @@ driver and a timeout per program. The expected lines never enter the sandbox.
 
 Scores (0 if the build fails):
 - statement: 10 × the mean, over the hidden scenarios, of the share of output lines equal to the
-  oracle's, at the same position. Research and upgrades are out of the test mode: not checked here.
+  oracle's, at the same position. Research and upgrades are out of the test mode: the judge grades
+  them under Creativity (§10.32).
 - working: 10 × the share of the robustness checks passed: each test-mode run ends by itself without
   a crash, each random-input run without a crash or a sanitizer report and quits on SDL_QUIT, and
   nothing is ever printed to stderr. A game without a test mode (made before §10.30) is judged on
   the random input alone; its statement score is 0, and the `test-mode` check says why.
-Tiles, idle CPU and RAM stay figures and checks.
+- performance: the p95 delay from an input to the next frame, under random input in the imposed
+  build, 10 at LATENCY_BEST_MS, 0 at LATENCY_WORST_MS, on a log scale;
+- resources: the mean of the idle CPU, 10 × (1 − share of a core), and the idle peak RAM, 10 at
+  RAM_BEST_MB, 0 at RAM_WORST_MB, on a log scale.
+Tiles stay figures and checks: the judge sees the screenshots.
 """
 
 from __future__ import annotations
@@ -33,12 +38,15 @@ from scenarios import expected, script  # noqa: E402
 from tiles import Shot, Tiles, checks as tile_checks  # noqa: E402
 
 from bench import cpp_metrics  # noqa: E402
-from bench.grade import MEASURE, created_files  # noqa: E402
+from bench.grade import FAILED_BUILD_SHEET, MEASURE, created_files, log_score  # noqa: E402
 from bench.runner import sandbox_exec  # noqa: E402
 
 FIXTURE = HERE.parent / "fixture"
 FUZZ_SEEDS = (1, 2)
 FUZZ_MS, IDLE_MS = 20000, 5000
+LATENCY_SEED, LATENCY_MS = 3, 10000
+LATENCY_BEST_MS, LATENCY_WORST_MS = 16, 500   # one frame at 60 Hz, one tick of the game
+RAM_BEST_MB, RAM_WORST_MB = 16, 256
 FORBIDDEN_INCLUDES = re.compile(r'^\s*#\s*include\s*[<"](SDL2?/)?(SDL_image|SDL_ttf|SDL_mixer|SDL_net)\.h[>"]', re.M)
 SANITIZER = re.compile(r"Sanitizer|runtime error")
 
@@ -64,12 +72,15 @@ def _script() -> str:
         "    timeout 30 build/city --script $f --out $G/out/$n.out > /dev/null 2> $G/out/$n.err; echo $? > $G/out/$n.rc;"
         "  done",
         "fi",
-        # 3. random input in the sanitizer build, then the idle game in the imposed one
+        # 3. random input in the sanitizer build
         "gcc -shared -fPIC -O1 $G/fuzz.c -o $G/fuzz.so $(pkg-config --cflags --libs sdl2) -ldl > $G/fuzz-build.log 2>&1",
         f"for s in {' '.join(map(str, FUZZ_SEEDS))}; do",
         f"  env {fuzz_env} FUZZ_SEED=$s FUZZ_MS={FUZZ_MS} timeout {FUZZ_MS // 1000 + 30} $G/asan/city"
         "   > /dev/null 2> $G/out/fuzz$s.err; echo $? > $G/out/fuzz$s.rc;",
         "done",
+        # 4. the delay from an input to the next frame, in the imposed build, then the idle game
+        f"env LD_PRELOAD=$PWD/$G/fuzz.so FUZZ_SEED={LATENCY_SEED} FUZZ_MS={LATENCY_MS} FUZZ_LATENCY=$G/out/latency.txt"
+        f" timeout {LATENCY_MS // 1000 + 30} build/city > /dev/null 2> $G/out/latency.err; echo $? > $G/out/latency.rc",
         f"python3 $G/measure.py {IDLE_MS // 1000 + 20} $G/out/idle.err env LD_PRELOAD=$PWD/$G/fuzz.so FUZZ_IDLE=1"
         f" FUZZ_MS={IDLE_MS} build/city > $G/out/idle.result",
     ]) + "\n"
@@ -118,23 +129,46 @@ def _tiles(g: Path, shots: list[list], starts: dict[str, int]) -> tuple[dict, di
     return tile_checks(images, buildings, roads)
 
 
+def latency(text: str) -> dict:
+    """What fuzz.so wrote with FUZZ_LATENCY: "<samples> <frames> <p50> <p95> <max>", or "0 <frames>"."""
+    values = text.split()
+    if len(values) not in (2, 5) or not all(v.replace(".", "", 1).isdigit() for v in values):
+        return {"samples": 0, "frames": 0, "p95_ms": None}
+    figures = {"samples": int(values[0]), "frames": int(values[1]), "p95_ms": None}
+    if len(values) == 5:
+        figures |= {"p50_ms": float(values[2]), "p95_ms": float(values[3]), "max_ms": float(values[4])}
+    return figures
+
+
+def resource_scores(figures: dict) -> dict:
+    """Performance from the delay to the next frame, resources from the idle game."""
+    idle = figures["idle"]
+    cpu, ram = idle["cpu_percent"], idle["peak_ram_mb"]
+    resources = 0.0 if cpu is None or ram is None else \
+        round((10 * (1 - min(cpu, 100) / 100) + log_score(ram, RAM_BEST_MB, RAM_WORST_MB)) / 2, 1)
+    return {"performance": log_score(figures["latency"]["p95_ms"], LATENCY_BEST_MS, LATENCY_WORST_MS),
+            "resources": resources}
+
+
 def _sheet(built: bool, scores: dict, figures: dict, tile_ok: dict) -> dict:
     """The cells of grade.md. When the build fails, Working is 0 and the rest N/A (GRADING.md)."""
     if not built:
-        return {"Builds with the exact command": ["no"], "Working": ["0"]}
+        return FAILED_BUILD_SHEET
     notes = cpp_metrics.notes(figures["code"])
     t = figures["tiles"]
     tile_note = (f"tiles on {round(100 * t['tile_share'])} % of the cells; " if t.get("tile_share") is not None else "") \
         + ", ".join(f"{k} {'yes' if v else 'no'}" for k, v in tile_ok.items())
-    idle = figures["idle"]
+    idle, lat = figures["idle"], figures["latency"]
     return {
         "Builds with the exact command": ["yes"],
         "Working": [f"{scores['working']:g}"],
         "Following the statement": [f"{scores['statement']:g}", None,
-                                    f"rules: {figures['exact_scenarios']} hidden scenarios exact, research not checked"
+                                    f"rules: {figures['exact_scenarios']} hidden scenarios exact, research judged under Creativity"
                                     if figures["tiles"].get("error") != "no test mode" else "no test mode"],
-        "Creativity (N/A for T1)": [None, None, tile_note],
-        "Resources": [None, f"idle CPU {idle['cpu_percent']} %, {idle['peak_ram_mb']} MB peak RAM"],
+        "Creativity": [None, None, tile_note],
+        "Performance": [f"{scores['performance']:g}", f"p95 {lat['p95_ms']} ms from an input to the next frame",
+                        f"{lat['samples']} samples, {lat['frames']} frames in {LATENCY_MS // 1000} s"],
+        "Resources": [f"{scores['resources']:g}", f"idle CPU {idle['cpu_percent']} %, {idle['peak_ram_mb']} MB peak RAM"],
         **{row: [None, note] for row, note in notes.items()},
         "Safety": [None, f"random input under sanitizers clean on {figures['fuzz_clean']}; {notes['Safety']}"],
     }
@@ -172,16 +206,18 @@ def grade(tree: Path) -> dict:
     robustness = ended + [f["clean"] for f in fuzz.values()] + [f["quits"] for f in fuzz.values()] + [silent]
     tile_ok, tile_figures = _tiles(g, shots, starts) if test_mode else ({"tiles-used": False}, {"error": "no test mode"})
 
-    scores = {"statement": round(10 * sum(r["match"] for r in results.values()) / len(scenarios), 1) if test_mode else 0.0,
-              "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0}
     figures = {
         "exact_scenarios": f"{sum(r['exact'] for r in results.values())}/{len(scenarios)}",
         "fuzz_clean": f"{sum(f['clean'] for f in fuzz.values())}/{len(fuzz)}",
         "idle": {"cpu_percent": round(100 * int(idle_cpu) / int(idle_ms)) if idle_ms.isdigit() and idle_cpu.isdigit() and int(idle_ms) else None,
                  "peak_ram_mb": round(int(idle_kib) / 1024, 1) if idle_kib.isdigit() else None, "rc": idle_rc},
+        "latency": {**latency(_read(g / "out" / "latency.txt")), "rc": _rc(g / "out" / "latency.rc")},
         "tiles": tile_figures,
         "code": cpp_metrics.measure(tree, g, created_files(tree, FIXTURE)),
     }
+    scores = {"statement": round(10 * sum(r["match"] for r in results.values()) / len(scenarios), 1) if test_mode else 0.0,
+              "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0,
+              **(resource_scores(figures) if built else {"performance": 0.0, "resources": 0.0})}
     sources = cpp_metrics.sources(tree)
     return {
         "scores": scores,

@@ -1,6 +1,6 @@
 # Coding-agent benchmark — harness architecture
 
-> Status: **runner and collector written** (2026-10-25). They are tested end to end with a fake `claude`, and every contestant passed the smoke runs. The author compares the deliverables by hand; the report is still a stub.
+> Status: **runner and collector written** (2026-10-25). They are tested end to end with a fake `claude`, and every contestant passed the smoke runs. `bench grade` and `bench judge` grade every deliverable, nobody by hand (PLAN §10.32); the report is still a stub.
 > The plan and the tasks are in [PLAN.md](PLAN.md).
 
 ## 1. Principles
@@ -37,13 +37,13 @@
 
 ```
 benchmark_ai/
-├── PLAN.md · ARCHITECTURE.md · GRADING.md · GRADING-SHEET.md · README.md · .gitignore
+├── PLAN.md · ARCHITECTURE.md · GRADING.md · GRADING-SHEET{,-T2,-T3}.md · README.md · .gitignore
 ├── pyproject.toml                  # uv, Python ≥ 3.12, `bench` command
 ├── config/
 │   ├── contestants.yaml            # the 16 contestants
 │   ├── pricing.yaml                # dated $/MTok, tiers
 │   ├── orchestrator.md             # preamble of the orchestrated contestants: common core + one paragraph per mechanism
-│   ├── judge/{code,summary}.md     # instructions of the blind judge; code.md takes GRADING.md's code grid as is
+│   ├── judge/{code,creativity,summary}.md  # instructions of the blind judge; code.md and creativity.md take GRADING.md's grid as is
 │   ├── agents/haiku-worker.json    # Haiku subagent, passed with --agents to opus-haiku only
 │   └── firejail/bench.profile      # sandbox: hardening, session masking
 ├── tasks/
@@ -87,7 +87,7 @@ The files are the source of truth. `bench validate` loads them with strict schem
   - an unknown price stays `null`: `validate` flags it, and the cost computation fails instead of counting 0. Every price was checked against the official pricing page on 2026-10-25. The cross-check with Claude Code (§8) caught one error on the first Sonnet run: Sonnet 5.5 cache reads cost $0.10/MTok (0.05 × input, like Opus 5.5), not $0.20.
 - **[`config/agents/haiku-worker.json`](config/agents/haiku-worker.json)**: the `worker` subagent. It is passed with `--agents` to opus-haiku only, so that no other contestant can delegate to Haiku.
 - **[`config/orchestrator.md`](config/orchestrator.md)**: a common core, then one paragraph per mechanism, separated by `<!-- mechanism: … -->`.
-- **`tasks/<T>/task.yaml`**: timeout, deliverables and `grading_sheet` (T1 and T4: graded with [GRADING.md](GRADING.md)).
+- **`tasks/<T>/task.yaml`**: timeout, deliverables, `grading_sheet` (the task's blank sheet at the repository root: [GRADING-SHEET.md](GRADING-SHEET.md) for T1 and T4, one of its own for T2 and T3), grader and judge.
 
 Task statements and agent-facing prompts are in English, the language every contestant, Strata included, handles best.
 
@@ -188,7 +188,7 @@ claude -p  (Opus 5.5, xhigh)                  claude -p  (Opus 5.5, xhigh)
     "gpu_energy_wh": 41.7
   }
   ```
-- **`grade.md`**: for a task with `grading_sheet`, `collect.py` also drops [GRADING-SHEET.md](GRADING-SHEET.md) into each finished run's folder, with the task, contestant, rep, time and cost filled in. An existing `grade.md` holds the author's grades: it is never overwritten.
+- **`grade.md`**: for a task with `grading_sheet`, `collect.py` also drops that sheet into each finished run's folder, with the task, contestant, rep, time and cost filled in. An existing `grade.md` holds the grades: it is never overwritten.
 
 ## 9. Phase 1 smoke tests (before any task)
 
@@ -228,20 +228,20 @@ claude -p  (Opus 5.5, xhigh)                  claude -p  (Opus 5.5, xhigh)
 
 ## 10. Grading
 
-`bench grade` (PLAN §10.28) copies each finished run's `final/` into `~/bench-ws/grading/`, runs the task's grader on it, and writes `auto.json` next to the run: scores where a formula is objective, checks, raw figures and details. For T1 and T4 it also writes those figures into `grade.md`, marked `(auto)`, only where a cell is blank or holds an earlier `(auto)` value; every `bench grade` refreshes them, from `auto.json` when the run is already graded. A grader that runs agent code does it with `sandbox_exec`, in the agents' sandbox; graders and their hidden data stay in the bench repository, which the sandbox cannot see. The grading builds other than the imposed one (warnings, sanitizers, strict warnings) get their flags through a small `g++` wrapper written in the copy (`cpp_metrics.compiler`), after the project's own flags and on every compile and link: a `CMakeLists.txt` can overwrite `CMAKE_CXX_FLAGS`, not that.
+`bench grade` (PLAN §10.28) copies each finished run's `final/` into `~/bench-ws/grading/`, runs the task's grader on it, and writes `auto.json` next to the run: scores where a formula is objective, checks, raw figures and details. It also writes the scores and figures into `grade.md`, marked `(auto)`, only where a cell is blank or holds an earlier `(auto)` value; every `bench grade` refreshes them, from `auto.json` when the run is already graded. A grader that runs agent code does it with `sandbox_exec`, in the agents' sandbox; graders and their hidden data stay in the bench repository, which the sandbox cannot see. The grading builds other than the imposed one (warnings, sanitizers, strict warnings) get their flags through a small `g++` wrapper written in the copy (`cpp_metrics.compiler`), after the project's own flags and on every compile and link: a `CMakeLists.txt` can overwrite `CMAKE_CXX_FLAGS`, not that.
 
 | Task | Scores | Figures and checks |
 |---|---|---|
-| T1 | `statement`: 10 × mean match of the 10 hidden scenarios with the oracle; `working`: share of the 28 robustness checks passed (invalid inputs, command-line errors, no crash or timeout) | exact scenarios, time and peak RAM on 200,000 passengers, warnings, sanitizer reports, standard library only, output format |
-| T2 | none | sections, words (as `wc -w`), diagram, no edit, every path or identifier in inline code checked against the fixture |
-| T3 | `review`: 10 × F1 against `seeded_bugs.yaml` (same file, line within 5, a keyword) | found, found ignoring the lines, unmatched comments in full, same severity, no edit |
-| T4 | `statement`: 10 × mean share of the test-mode lines equal to the oracle's, over 13 hidden scenarios; `working`: share of the robustness checks passed (each test-mode run ends, random clicks and keys under sanitizers end cleanly and quit on SDL_QUIT, nothing on stderr) | exact scenarios, tiles (share of cells, composed buildings, distinct types, roads that join), idle CPU and RAM, SDL2 and libpng only; the screenshots go to the run's `auto/` |
+| T1 | `statement`: 10 × mean match of the 10 hidden scenarios with the oracle; `working`: share of the 28 robustness checks passed (invalid inputs, command-line errors, no crash or timeout); `performance`, `resources`: time and peak RAM on 200,000 passengers, on a log scale | exact scenarios, warnings, sanitizer reports, standard library only, output format |
+| T2 | `statement`: share of the form checks passed (sections, words as `wc -w`, diagram, no edit) | every path or identifier in inline code checked against the fixture |
+| T3 | `review`: 10 × F1 against `seeded_bugs.yaml` (same file, line within 5, a keyword); `statement`: share of the checks passed (schema, no edit, severities); `severity`: credit of the severities of the bugs found | found, found ignoring the lines, unmatched comments in full, same severity |
+| T4 | `statement`: 10 × mean share of the test-mode lines equal to the oracle's, over 13 hidden scenarios; `working`: share of the robustness checks passed (each test-mode run ends, random clicks and keys under sanitizers end cleanly and quit on SDL_QUIT, nothing on stderr); `performance`: p95 delay from an input to the next frame, measured by `fuzz.so` in the imposed build; `resources`: idle CPU and RAM | exact scenarios, tiles (share of cells, composed buildings, distinct types, roads that join), SDL2 and libpng only; the screenshots go to the run's `auto/` |
 
 For T1 and T4, `bench/cpp_metrics.py` adds the code metrics of PLAN §10.29 under `figures.code`, one group per criterion of GRADING.md, and a one-line summary per criterion in the *Notes* column of `grade.md`. The strict build and clang-tidy configure the agent's CMake project, so they run in the sandbox; lizard and the rest only read the sources.
 
-`bench judge` (PLAN §10.31) has Opus at `xhigh` grade what no formula measures: the five code criteria of GRADING.md for the tasks with `judge: code` (T1, T4), the truth and completeness of the summary for `judge: summary` (T2). Each pass copies the run's `final/` into `~/bench-ws/judge/<random>/`, without `build/`, redacts in the agent's files every contestant id, model name and the run's own workspace path (the fixture's files stay as they are), adds the statement as `_judge/STATEMENT.md`, and runs `claude -p` in the agents' sandbox with `config/judge/<kind>.md` on stdin. The judge writes `_judge/judgement.json`; its transcript and config go to the run's `judge/pass<n>/`. Two passes per run, all the first ones before the second ones, each list shuffled with a seed. `judge.json` keeps the passes, the mean grade and the spread; the means go to the *Score* column of `grade.md`, marked `(judge)`. A subscription limit stops the command, and the next launch resumes with the missing passes.
+`bench judge` (PLAN §10.31) has Opus at `xhigh` grade what no formula measures: the five code criteria of GRADING.md for the tasks with `judge: code` (T1), the same plus creativity for `judge: game` (T4), from the screenshots of the run's `auto/` copied to `_judge/shots/`, and the truth and completeness of the summary for `judge: summary` (T2). Each pass copies the run's `final/` into `~/bench-ws/judge/<random>/`, without `build/`, redacts in the agent's files every contestant id, model name and the run's own workspace path (the fixture's files stay as they are), adds the statement as `_judge/STATEMENT.md`, and runs `claude -p` in the agents' sandbox with `config/judge/<kind>.md` on stdin (`code.md` then `creativity.md` for a game). The judge writes `_judge/judgement.json`; its transcript and config go to the run's `judge/pass<n>/`. Two passes per run, all the first ones before the second ones, each list shuffled with a seed. `judge.json` keeps the passes, the mean grade and the spread; the means go to the *Score* column of `grade.md`, marked `(judge)`. A subscription limit stops the command, and the next launch resumes with the missing passes.
 
-The author grades the rest by hand from `deliverables/` and `final/` (§5), and keeps the final grade everywhere.
+Nobody grades by hand (PLAN §10.32): the grades of `bench grade` and `bench judge` are final. `bench grade` runs first, since the T4 judge needs its screenshots and a failed build's N/A cells must be written before the judge's.
 
 - **`report.py`** (to come) gives time, cost and tokens per contestant and per task (median and spread over the repetitions), with Strata GPU energy as an indication.
 

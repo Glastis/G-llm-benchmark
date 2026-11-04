@@ -1,5 +1,6 @@
 """The blind LLM judge (PLAN §10.31). Opus at `xhigh` grades what no formula measures: the code criteria
-of GRADING.md for T1 and T4, the truth and completeness of the T2 summary. Each run is judged twice,
+of GRADING.md for T1 and T4, the creativity of the T4 game from the screenshots its grader took
+(§10.32), the truth and completeness of the T2 summary. Each run is judged twice,
 in two separate sessions, and the grade kept is the mean; the spread shows how steady the judge is.
 
 Blind: the judge works on a copy of the run's final workspace under a random name, without the
@@ -23,7 +24,7 @@ from typing import Callable
 
 from bench.backends import anthropic
 from bench.config import ROOT, Bundle, Contestant, Task
-from bench.grade import fill_sheet, finished_runs
+from bench.grade import ATTACHMENTS, fill_sheet, finished_runs
 from bench.runner import RUNS_ROOT, WS_ROOT, QuotaReached, RunPaths, _execute, _final_events, _scrub, classify, sandboxed
 
 JUDGE = Contestant(id="judge", label="Blind judge", backend="anthropic", model="claude-opus-5-5", effort="xhigh")
@@ -32,24 +33,28 @@ PROMPTS = ROOT / "config" / "judge"
 REPORT = "judge.json"
 MARK = " (judge)"
 TIMEOUT_S = 1800
-CRITERIA = {"code": ["Readability", "Architecture", "Factoring", "Cleanliness", "Safety"],
-            "summary": ["Truth", "Completeness"]}
+CODE = ["Readability", "Architecture", "Factoring", "Cleanliness", "Safety"]
+CRITERIA = {"code": CODE, "game": [*CODE, "Creativity"], "summary": ["Truth", "Completeness"]}
 GENERIC_NAMES = ["claude", "anthropic", "opus", "sonnet", "haiku", "strata", "qwen"]
 SKIPPED = {"build", ".grade", "_judge", ".git"}
 VERDICT = Path("_judge") / "judgement.json"
 
 
-def grid() -> str:
-    """The "The code" section of GRADING.md: the judge applies the author's own grid."""
+def excerpt(start: str, end: str) -> str:
+    """The part of GRADING.md from `start` to the next `end`: the judge applies the author's own grid."""
     text = (ROOT / "GRADING.md").read_text(encoding="utf-8")
-    start = text.index("## The code")
-    end = text.find("\n## ", start + 1)
-    return text[start:None if end == -1 else end].strip()
+    first = text.index(start)
+    last = text.find(end, first + 1)
+    return text[first:None if last == -1 else last].strip()
 
 
 def prompt(kind: str) -> str:
+    """The judge's instructions. A game gets the code's, then the creativity criterion."""
+    if kind == "game":
+        creativity = (PROMPTS / "creativity.md").read_text(encoding="utf-8")
+        return prompt("code") + "\n" + creativity.replace("{creativity}", excerpt("- **Creativity /10**", "\n- **"))
     text = (PROMPTS / f"{kind}.md").read_text(encoding="utf-8")
-    return text.replace("{grid}", grid()) if kind == "code" else text
+    return text.replace("{grid}", excerpt("## The code", "\n## ")) if kind == "code" else text
 
 
 def names(bundle: Bundle, record: dict) -> list[str]:
@@ -67,7 +72,8 @@ def redact(text: str, words: list[str]) -> str:
 
 def stage(run_dir: Path, task: Task, words: list[str], root: Path = JUDGE_ROOT) -> RunPaths:
     """The judge's workspace: the run's final workspace, build outputs left out, the agent's files
-    redacted (the fixture's are kept as they are), and the statement in _judge/."""
+    redacted (the fixture's are kept as they are), the statement in _judge/, and for a game the
+    screenshots its grader attached, in _judge/shots/."""
     key = secrets.token_hex(6)
     p = RunPaths(ws=root / key, state=root / f"{key}.state", run=root / f"{key}.state")
     final, fixture = run_dir / "final", task.dir / task.fixture
@@ -86,6 +92,10 @@ def stage(run_dir: Path, task: Task, words: list[str], root: Path = JUDGE_ROOT) 
         dst.write_bytes(data)
     (p.ws / "_judge").mkdir(parents=True, exist_ok=True)
     (p.ws / "_judge" / "STATEMENT.md").write_text(task.prompt_text(), encoding="utf-8")
+    shots = sorted((run_dir / ATTACHMENTS).glob("*.png")) if task.judge == "game" else []
+    for shot in shots:
+        (p.ws / "_judge" / "shots").mkdir(exist_ok=True)
+        shutil.copy2(shot, p.ws / "_judge" / "shots" / shot.name)
     p.claude_home.mkdir(parents=True)
     return p
 

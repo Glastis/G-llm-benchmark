@@ -87,9 +87,9 @@ class Task(Strict):
     prompt: Path
     fixture: Path
     deliverables: list[str]
-    grading_sheet: bool = False   # graded with GRADING.md: `bench collect` drops a sheet into each finished run
+    grading_sheet: Path | None = None   # blank sheet at the repository root, dropped into each finished run as grade.md
     grader: Path | None = None    # a file with a grade(tree) function, run by `bench grade` (bench/grade.py)
-    judge: Literal["code", "summary"] | None = None   # what `bench judge` grades (bench/judge.py)
+    judge: Literal["code", "game", "summary"] | None = None   # what `bench judge` grades (bench/judge.py)
     dir: Path = Path()
 
     def prompt_text(self) -> str:
@@ -168,6 +168,8 @@ def load_all(tasks_dir: Path = ROOT / "tasks") -> Bundle:
             b.errors.append(f"{t.id}: task statement {t.prompt} not found")
         elif "TODO" in t.prompt_text():
             b.warnings.append(f"{t.id}: task statement not written yet")
+        if t.grading_sheet and not (ROOT / t.grading_sheet).is_file():
+            b.errors.append(f"{t.id}: grading sheet {t.grading_sheet} not found")
         if t.grader and not (t.dir / t.grader).is_file():
             b.errors.append(f"{t.id}: grader {t.grader} not found")
         fixture = t.dir / t.fixture

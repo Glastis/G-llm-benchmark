@@ -29,7 +29,7 @@ If not: *Working* is 0 and every other score is N/A.
 |---|---|---|---|
 | Working | | — | |
 | Following the statement | | — | |
-| Creativity (N/A for T1) | | — | |
+| Creativity | | — | |
 | Performance | | | |
 | Resources | | | |
 

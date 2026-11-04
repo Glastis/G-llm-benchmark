@@ -29,7 +29,6 @@ from bench.runner import FINAL, RUNS_ROOT, strata_side
 STRATA_PRICE = "strata"
 ALERT_COST_FACTOR = 3   # alert when a run costs more than 3 × its contestant's median (PLAN §10.7)
 FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
-SHEET = ROOT / "GRADING-SHEET.md"
 
 
 @dataclass
@@ -237,9 +236,9 @@ def _subscription(info: dict | None) -> dict | None:
             **{f"{name}_utilization": w.get("utilization") for name, w in windows.items()}}
 
 
-def write_grade_sheet(run_dir: Path, m: dict, pricing: Pricing, template: Path = SHEET) -> None:
-    """Drops the blank grading sheet into the run's folder as grade.md, with what the harness
-    already knows filled in. An existing sheet holds the author's grades: it is never touched."""
+def write_grade_sheet(run_dir: Path, m: dict, pricing: Pricing, template: Path) -> None:
+    """Drops the task's blank grading sheet into the run's folder as grade.md, with what the harness
+    already knows filled in. An existing sheet holds the grades: it is never touched."""
     sheet = run_dir / "grade.md"
     if sheet.exists():
         return
@@ -279,5 +278,5 @@ def collect(campaign: str, bundle: Bundle, runs_root: Path = RUNS_ROOT) -> list[
         (run_dir / "metrics.json").write_text(json.dumps(m, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         task = bundle.tasks.get(run_dir.parent.parent.name)
         if task and task.grading_sheet and m["status"] in FINAL:
-            write_grade_sheet(run_dir, m, bundle.pricing)
+            write_grade_sheet(run_dir, m, bundle.pricing, ROOT / task.grading_sheet)
     return [m for _, m in all_metrics]

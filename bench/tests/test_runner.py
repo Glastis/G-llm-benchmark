@@ -24,7 +24,7 @@ def make_task(root: Path, mode: str, timeout_min: float = 1, grading_sheet: bool
     (task / "prompt.md").write_text(f"Do it. MODE={mode}\n")
     (task / "task.yaml").write_text(
         f"id: t\ntitle: test\ntimeout_min: {timeout_min}\nprompt: prompt.md\nfixture: fixture\n"
-        f"deliverables: [hello.txt]\ngrading_sheet: {str(grading_sheet).lower()}\n")
+        f"deliverables: [hello.txt]\n" + ("grading_sheet: GRADING-SHEET.md\n" if grading_sheet else ""))
     return root / "tasks"
 
 

@@ -4,8 +4,10 @@
 - References: every inline code span that looks like a path or an identifier must exist in the
   fixture, as a file or folder, or as text in some file. A missing one is often an invention; a
   reference to something the code only gets from outside (an API of the mod itself, say) can also
-  miss, so the list is for the author to judge.
-Whether each statement is true stays a judgement: no score here.
+  miss, so the list is a figure, not a score.
+
+Score (0 when nothing is delivered): statement, 10 × the share of the form checks passed (sections,
+word limit, diagram, no other file touched). Truth and completeness are the judge's (§10.31).
 """
 
 from __future__ import annotations
@@ -93,6 +95,20 @@ class Corpus:
         return self._path(path) or path in self.text or all(self._word(part) for part in path.split("/") if part)
 
 
+def _sheet(delivered: bool, scores: dict, form: dict, figures: dict) -> dict:
+    """The cells of grade.md. When nothing is delivered, every score is 0 (GRADING.md)."""
+    if not delivered:
+        return {"`ARCHITECTURE.md` written": ["no"],
+                **{row: ["0"] for row in ("Following the statement", "Truth", "Completeness")}}
+    failed = [name for name, ok in form.items() if not ok]
+    return {
+        "`ARCHITECTURE.md` written": ["yes"],
+        "Following the statement": [f"{scores['statement']:g}", f"{figures['words']} words"
+                                    + (f"; failed: {', '.join(failed)}" if failed else "; every form check passed")],
+        "Truth": [None, f"{figures['references_missing']}/{figures['references']} references not found in the code"],
+    }
+
+
 def grade(tree: Path, fixture: Path = FIXTURE) -> dict:
     path = tree / DELIVERABLE
     text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
@@ -104,20 +120,24 @@ def grade(tree: Path, fixture: Path = FIXTURE) -> dict:
     refs = references(text)
     missing = [r for r in refs if not corpus.has(r)]
     edited = changed_files(tree, fixture) + created_files(tree, fixture, allowed=(DELIVERABLE,))
+    delivered = bool(text.strip())
+    form = {
+        "sections": [t for t in titles if t in wanted] == wanted,
+        "word-limit": delivered and words(text) <= MAX_WORDS,
+        "diagram": has_diagram(diagram_body),
+        "no-code-edit": not edited,
+    }
+    scores = {"statement": round(10 * sum(form.values()) / len(form), 1) if delivered else 0.0}
+    figures = {
+        "words": words(text),
+        "references": len(refs),
+        "references_missing": len(missing),
+    }
     return {
-        "scores": {},
-        "checks": {
-            "delivered": bool(text.strip()),
-            "sections": [t for t in titles if t in wanted] == wanted,
-            "word-limit": bool(text.strip()) and words(text) <= MAX_WORDS,
-            "diagram": has_diagram(diagram_body),
-            "no-code-edit": not edited,
-        },
-        "figures": {
-            "words": words(text),
-            "references": len(refs),
-            "references_missing": len(missing),
-        },
+        "scores": scores,
+        "checks": {"delivered": delivered, **form},
+        "figures": figures,
+        "sheet": _sheet(delivered, scores, form, figures),
         "details": {
             "sections_found": [t for t, _ in found],
             "missing_references": missing,

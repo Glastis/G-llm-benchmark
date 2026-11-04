@@ -14,7 +14,7 @@ def _task(tmp_path: Path, kind: str = "code") -> Task:
     (tmp_path / "task" / "fixture" / "README.md").write_text("haiku in the fixture stays\n")
     (tmp_path / "task" / "prompt.md").write_text("Write a program.\n")
     return Task(id="T1-simulation", title="t", timeout_min=1, prompt=Path("prompt.md"), fixture=Path("fixture"),
-                deliverables=[], grading_sheet=True, judge=kind, dir=tmp_path / "task")
+                deliverables=[], grading_sheet=Path("GRADING-SHEET.md"), judge=kind, dir=tmp_path / "task")
 
 
 def _run(tmp_path: Path, text: str = "int main() {}\n") -> Path:
@@ -67,3 +67,17 @@ def test_the_code_prompt_carries_the_author_grid():
     text = judge.prompt("code")
     assert "{grid}" not in text and "Readability /10" in text and "template or `constexpr`" in text
     assert "## The program" not in text and (ROOT / "config" / "judge" / "summary.md").is_file()
+
+
+def test_a_game_gets_the_screenshots_and_the_creativity_grid(tmp_path):
+    task, b = _task(tmp_path, "game"), load_all()
+    run = _run(tmp_path)
+    (run / "auto").mkdir()
+    (run / "auto" / "roads.png").write_bytes(b"png")
+    p = judge.stage(run, task, judge.names(b, json.loads((run / "run.json").read_text())), tmp_path / "judge")
+    assert (p.ws / "_judge" / "shots" / "roads.png").read_bytes() == b"png"
+    text = judge.prompt("game")
+    assert "Readability /10" in text and "**Creativity /10**" in text and "does each upgrade do exactly what it shows" in text
+    assert "{creativity}" not in text and "**Performance /10**" not in text
+    result = judge.judge_once(task, run, b, 1, claude_bin=FAKE, sandbox=False, root=tmp_path / "judge")
+    assert result["judgement"]["criteria"]["Creativity"]["score"] == 7

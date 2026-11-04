@@ -2,9 +2,11 @@
 agent code is left to `bench grade` on real runs."""
 
 import json
+import shutil
+import subprocess
 
 from bench.config import ROOT
-from bench.grade import fill_sheet, finished_runs, load_module
+from bench.grade import fill_sheet, finished_runs, load_module, log_score
 
 TASKS = ROOT / "tasks"
 
@@ -23,6 +25,11 @@ def test_sheet_fills_blank_cells_and_replaces_its_own():
     assert once == ("| Builds with the exact command | yes (auto) |\n| Working | | — | |\n"
                     "| Performance | | 500 ms (auto) | |\n| Resources | 7 | 40 MB | mine |\n")
     assert fill_sheet(once, sheet) == once
+
+
+def test_log_score_bounds_and_scale():
+    assert log_score(50, 100, 1000) == 10 and log_score(1000, 100, 1000) == 0 and log_score(None, 100, 1000) == 0
+    assert log_score(316, 100, 1000) == 5.0   # halfway on a log scale
 
 
 def test_finished_runs_leave_out_attempts_and_quota(tmp_path):
@@ -49,6 +56,13 @@ def test_t1_summary_tolerates_the_last_decimal_only():
     assert t1.summary_matches(ref, ref.replace("18.33", "18.34"))
     assert not t1.summary_matches(ref, ref.replace("18.33", "18.40"))
     assert not t1.summary_matches(ref, ref.replace("makespan 175", "makespan 176"))
+
+
+def test_t1_performance_and_resources_need_the_right_summary():
+    t1 = load("T1-simulation", "grade")
+    figures = {"perf_summary_ok": True, "perf_ms": 300, "peak_ram_mb": 60.0}
+    assert t1.resource_scores(figures) == {"performance": 5.2, "resources": 6.2}
+    assert t1.resource_scores(figures | {"perf_summary_ok": False}) == {"performance": 0.0, "resources": 0.0}
 
 
 def test_t1_oracle_reproduces_the_example_and_the_hidden_traces():
@@ -90,6 +104,28 @@ def test_t3_matching_and_f1():
     assert s["recall"] == round(1 / 7, 4) and s["precision"] == round(1 / 3, 4)
 
 
+def test_t3_severity_credit():
+    t3 = load("T3-pr-review", "grade")
+    pairs = {"a": ("high", "high"), "b": ("low", "medium"), "c": ("low", "critical"), "d": ("urgent", "low")}
+    assert t3.severity_score(pairs) == 3.8 and t3.severity_score({}) is None
+
+
+def test_t3_scores_and_sheet(tmp_path):
+    t3 = load("T3-pr-review", "grade")
+    tree = tmp_path / "tree"
+    shutil.copytree(TASKS / "T3-pr-review" / "fixture", tree)
+    injection = next(b for b in t3.load_bugs() if b["id"] == "sort-injection")   # critical in the key
+    (tree / "review.json").write_text(json.dumps({"comments": [
+        {"file": injection["file"], "line": injection["lines"][0], "severity": "high", "description": "SQL injection via sort"}]}))
+    report = t3.grade(tree)
+    assert report["scores"] == {"review": 2.5, "statement": 10.0, "severity": 5.0}
+    assert report["sheet"]["Severity"] == ["5", "0/1 exact"]
+    (tree / "review.json").write_text("{not json")
+    report = t3.grade(tree)
+    assert report["scores"] == {"review": 0.0, "statement": 0.0, "severity": 0.0}
+    assert report["sheet"]["`review.json` readable as JSON"] == ["no"] and report["sheet"]["Severity"] == ["0"]
+
+
 def test_t3_schema_errors():
     t3 = load("T3-pr-review", "grade")
     assert t3.check_schema({"comments": [{"file": "a.cpp", "line": 3, "severity": "high", "description": "x"}]}) == []
@@ -121,6 +157,22 @@ def test_t2_references_are_checked_against_the_code(tmp_path):
     refs = t2.references(doc)
     assert "x = 1" not in refs and "fenced.lua" not in refs
     assert [r for r in refs if not corpus.has(r)] == ["lib/net/peer.lua", "route.receive"]
+
+
+def test_t2_statement_score_and_sheet(tmp_path):
+    t2 = load("T2-archi-summary", "grade")
+    (tmp_path / "fixture").mkdir()
+    (tmp_path / "fixture" / "main.lua").write_text("print(1)\n")
+    tree = tmp_path / "tree"
+    shutil.copytree(tmp_path / "fixture", tree)
+    (tree / "ARCHITECTURE.md").write_text("# T\n\n" + "".join(f"## {name}\n\nSee `main.lua`.\n\n" for name in t2.SECTIONS))
+    report = t2.grade(tree, tmp_path / "fixture")
+    assert report["scores"] == {"statement": 7.5}   # no diagram
+    assert report["sheet"]["Following the statement"] == ["7.5", "32 words; failed: diagram"]
+    assert report["sheet"]["Truth"] == [None, "0/1 references not found in the code"]
+    (tree / "ARCHITECTURE.md").write_text("")
+    report = t2.grade(tree, tmp_path / "fixture")
+    assert report["scores"] == {"statement": 0.0} and report["sheet"]["Truth"] == ["0"]
 
 
 # C++ code metrics
@@ -194,6 +246,33 @@ def test_t4_oracle_gives_the_statement_example():
     assert scenarios.script([["place", "road", -1, 0], ["reset"]]) == "place road -1 0\nreset\n"
     t4 = load("T4-game", "grade")
     assert t4.match(["a", "b", "c", "d"], ["a", "x", "c"]) == 0.5
+
+
+def test_t4_latency_and_resource_scores():
+    t4 = load("T4-game", "grade")
+    assert t4.latency("185 186 11.1 12.1 13.1") == {"samples": 185, "frames": 186, "p95_ms": 12.1, "p50_ms": 11.1, "max_ms": 13.1}
+    assert t4.latency("0 3")["p95_ms"] is None and t4.latency("")["p95_ms"] is None
+    figures = {"latency": t4.latency("29 30 95.1 96.1 96.1"), "idle": {"cpu_percent": 30, "peak_ram_mb": 16.0}}
+    assert t4.resource_scores(figures) == {"performance": 4.8, "resources": 8.5}
+
+
+def test_t4_fuzz_measures_the_delay_to_the_next_frame(tmp_path):
+    """A loop that shows a frame every 50 ms: an input waits about 45 ms, its share of the 5 ms stream."""
+    game = tmp_path / "game.c"
+    game.write_text("#include <SDL.h>\nint main(void) {\n    SDL_Init(SDL_INIT_VIDEO);\n"
+                    "    SDL_Renderer *r = SDL_CreateRenderer(SDL_CreateWindow(\"t\", 0, 0, 64, 64, 0), -1, SDL_RENDERER_SOFTWARE);\n"
+                    "    for (;;) {\n        SDL_Event e;\n        while (SDL_PollEvent(&e))\n"
+                    "            if (e.type == SDL_QUIT)\n                return 0;\n"
+                    "        SDL_RenderPresent(r);\n        SDL_Delay(50);\n    }\n}\n")
+    sdl = subprocess.run(["pkg-config", "--cflags", "--libs", "sdl2"], capture_output=True, text=True, check=True).stdout.split()
+    fuzz = TASKS / "T4-game" / "grader" / "fuzz.c"
+    subprocess.run(["gcc", "-shared", "-fPIC", "-O1", str(fuzz), "-o", str(tmp_path / "fuzz.so"), *sdl, "-ldl"], check=True)
+    subprocess.run(["gcc", str(game), "-o", str(tmp_path / "game"), *sdl], check=True)
+    env = {"SDL_VIDEODRIVER": "dummy", "LD_PRELOAD": str(tmp_path / "fuzz.so"), "FUZZ_MS": "1000",
+           "FUZZ_LATENCY": str(tmp_path / "latency.txt")}
+    subprocess.run([str(tmp_path / "game")], env=env, timeout=20, check=True)
+    figures = load("T4-game", "grade").latency((tmp_path / "latency.txt").read_text())
+    assert figures["samples"] > 10 and 30 <= figures["p95_ms"] <= 80
 
 
 def test_t4_tiles_are_recognised_cell_by_cell(tmp_path):

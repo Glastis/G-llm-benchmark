@@ -7,6 +7,7 @@ title: Architecture summary of ComputerCraft
 timeout_min: 300
 prompt: prompt.md
 fixture: fixture
+grading_sheet: GRADING-SHEET-T2.md   # bench collect drops it into each finished run, as grade.md
 deliverables: [ARCHITECTURE.md]
 grader: grader/grade.py   # form, and references checked against the fixture (§10.28)
 judge: summary            # what the blind judge grades (§10.31)

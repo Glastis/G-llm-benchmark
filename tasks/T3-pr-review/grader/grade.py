@@ -1,11 +1,17 @@
 """T3 grader: matches the comments of review.json with the seeded bugs (build/seeded_bugs.yaml) and
-computes recall, precision and F1 (PLAN §4 T3, §10.28). Score: 10 × F1.
+computes recall, precision and F1 (PLAN §4 T3, §10.28).
 
 A comment finds a bug when it names the same file, a line within TOLERANCE of the bug's lines, and
 its description matches one of the bug's keywords. Each comment finds at most one bug, each bug
-counts once. Every other comment counts as a false positive, but some may be real problems the key
-does not list: they are listed in full in the report, for the author to judge.
+counts once. Every other comment counts as a false positive, even a real problem the key does not
+list (§10.32); they are listed in full in the report.
 Nothing is executed: the review is only read.
+
+Scores (0 when review.json cannot be read as JSON):
+- review: 10 × F1;
+- statement: 10 × the share of the checks passed (schema, no file touched, valid severities);
+- severity: over the bugs found, 1 for the key's severity, 0.5 one level off, 0 otherwise, times 10;
+  None when no bug is found.
 """
 
 from __future__ import annotations
@@ -24,7 +30,8 @@ FIXTURE = HERE.parent / "fixture"
 BUGS = HERE.parent / "build" / "seeded_bugs.yaml"
 DELIVERABLE = "review.json"
 TOLERANCE = 5
-SEVERITIES = {"low", "medium", "high", "critical"}
+LEVELS = ["low", "medium", "high", "critical"]
+SEVERITIES = set(LEVELS)
 FIELDS = {"file", "line", "severity", "description"}
 
 
@@ -114,40 +121,76 @@ def score(n_bugs: int, n_found: int, false_positives: int) -> dict:
     return {"recall": round(recall, 4), "precision": round(precision, 4), "f1": round(f1, 4)}
 
 
-def _review(tree: Path) -> tuple[list[dict], list[str]]:
-    """The comments that are objects, and what is wrong with the document."""
+def severity_score(severities: dict[str, tuple[object, str]]) -> float | None:
+    """10 × the mean credit of the bugs found: 1 for the key's severity, 0.5 one level off."""
+    def credit(got: object, want: str) -> float:
+        if got not in SEVERITIES:
+            return 0.0
+        return {0: 1.0, 1: 0.5}.get(abs(LEVELS.index(got) - LEVELS.index(want)), 0.0)
+    if not severities:
+        return None
+    return round(10 * sum(credit(*pair) for pair in severities.values()) / len(severities), 1)
+
+
+def _review(tree: Path) -> tuple[list[dict], list[str], bool]:
+    """The comments that are objects, what is wrong with the document, and whether it is JSON at all."""
     try:
         review = json.loads((tree / DELIVERABLE).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        return [], [str(e)]
+        return [], [str(e)], False
     comments = review.get("comments") if isinstance(review, dict) else None
-    return [c for c in comments if isinstance(c, dict)] if isinstance(comments, list) else [], check_schema(review)
+    return [c for c in comments if isinstance(c, dict)] if isinstance(comments, list) else [], check_schema(review), True
+
+
+def _sheet(delivered: bool, scores: dict, checks: dict, figures: dict) -> dict:
+    """The cells of grade.md. When review.json cannot be read, every score is 0 (GRADING.md)."""
+    if not delivered:
+        return {"`review.json` readable as JSON": ["no"],
+                **{row: ["0"] for row in ("Bugs found", "Following the statement", "Severity")}}
+    failed = [name for name, ok in checks.items() if not ok]
+    severity = scores["severity"]
+    return {
+        "`review.json` readable as JSON": ["yes"],
+        "Bugs found": [f"{scores['review']:g}", f"{figures['found']} found ({figures['found_ignoring_lines']} ignoring"
+                       f" the lines), precision {figures['precision']:g}, {figures['unmatched']} unmatched comments,"
+                       f" {figures['duplicates']} duplicates"],
+        "Following the statement": [f"{scores['statement']:g}",
+                                    f"failed: {', '.join(failed)}" if failed else "every check passed"],
+        "Severity": ["N/A" if severity is None else f"{severity:g}", f"{figures['same_severity']} exact"],
+    }
 
 
 def grade(tree: Path) -> dict:
     bugs = load_bugs()
-    comments, schema_errors = _review(tree)
+    comments, schema_errors, delivered = _review(tree)
     m = match(comments, bugs)
     s = score(len(bugs), len(m["found"]), len(m["unmatched"]))
     severities = {b["id"]: (comments[m["found"][b["id"]]].get("severity"), b["severity"])
                   for b in bugs if b["id"] in m["found"]}
     edited = changed_files(tree, FIXTURE) + created_files(tree, FIXTURE, allowed=(DELIVERABLE,))
+    checks = {
+        "json-valid": not schema_errors,
+        "no-code-edit": not edited,
+        "severity-enum": bool(comments) and all(c.get("severity") in SEVERITIES for c in comments),
+    }
+    scores = {"review": round(10 * s["f1"], 1), "statement": round(10 * sum(checks.values()) / len(checks), 1),
+              "severity": severity_score(severities)}
+    if not delivered:
+        scores = dict.fromkeys(scores, 0.0)
+    figures = {
+        **s,
+        "found": f"{len(m['found'])}/{len(bugs)}",
+        # A review that describes the bugs but cites the wrong lines shows up here.
+        "found_ignoring_lines": f"{len(match(comments, bugs, float('inf'))['found'])}/{len(bugs)}",
+        "unmatched": len(m["unmatched"]),
+        "duplicates": len(m["duplicates"]),
+        "same_severity": f"{sum(got == want for got, want in severities.values())}/{len(severities)}",
+    }
     return {
-        "scores": {"review": round(10 * s["f1"], 1)},
-        "checks": {
-            "json-valid": not schema_errors,
-            "no-code-edit": not edited,
-            "severity-enum": bool(comments) and all(c.get("severity") in SEVERITIES for c in comments),
-        },
-        "figures": {
-            **s,
-            "found": f"{len(m['found'])}/{len(bugs)}",
-            # A review that describes the bugs but cites the wrong lines shows up here.
-            "found_ignoring_lines": f"{len(match(comments, bugs, float('inf'))['found'])}/{len(bugs)}",
-            "unmatched": len(m["unmatched"]),
-            "duplicates": len(m["duplicates"]),
-            "same_severity": f"{sum(got == want for got, want in severities.values())}/{len(severities)}",
-        },
+        "scores": scores,
+        "checks": checks,
+        "figures": figures,
+        "sheet": _sheet(delivered, scores, checks, figures),
         "details": {
             "found": {b["id"]: m["found"].get(b["id"]) for b in bugs},
             "missed": [b["id"] for b in bugs if b["id"] not in m["found"]],

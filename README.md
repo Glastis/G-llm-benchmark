@@ -4,11 +4,11 @@ Cost × quality benchmark of coding agents: Strata running locally, alone or dri
 
 - [PLAN.md](PLAN.md): goal, contestants, tasks, phases and decisions.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the harness, its files and how tokens are measured.
-- [GRADING.md](GRADING.md): the author's grid for grading the code tasks.
+- [GRADING.md](GRADING.md): the grid for grading the four tasks, by formula or by the blind judge.
 
 ## Status
 
-`validate`, `plan`, `run`, `collect`, `grade`, `judge` and `smoke` work. Every contestant passed the smoke runs. The four tasks are written. `grade` grades the four tasks where a formula is objective, `judge` has a blind Opus grade the code of T1 and T4 and the truth of T2, and the author keeps the final grade; `report` is still to come.
+`validate`, `plan`, `run`, `collect`, `grade`, `judge` and `smoke` work. Every contestant passed the smoke runs. The four tasks are written. `grade` grades the four tasks where a formula is objective, `judge` has a blind Opus grade the code of T1 and T4, the creativity of T4 and the truth of T2, and nobody grades by hand; `report` is still to come.
 
 ## Requirements
 

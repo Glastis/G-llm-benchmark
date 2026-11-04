@@ -6,8 +6,8 @@ as auto.json. Graders and their hidden data stay in the bench repository, invisi
 A report holds:
     {"scores": {criterion: 0 to 10}, "checks": {id: bool}, "figures": {raw numbers},
      "sheet": {row of grade.md: [cell, …]}, "attachments": [files of the tree], "details": {…}}
-Scores only where a fixed formula is objective; the rest stays the author's (GRADING.md). The `sheet`
-cells go into the run's grade.md, only where the author left them blank; the attachments are copied
+Each score comes from a fixed formula (GRADING.md); what no formula measures is the judge's (§10.32).
+The `sheet` cells go into the run's grade.md, only where a cell is blank; the attachments are copied
 into the run's auto/ folder.
 """
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
 import re
 import shutil
 import sys
@@ -29,6 +30,10 @@ REPORT = "auto.json"
 AUTO = " (auto)"
 RUN_DIR = re.compile(r"r\d+")
 ATTACHMENTS = "auto"   # where a run keeps the files its grader attached (screenshots…)
+# The cells of GRADING-SHEET.md when the build fails: Working is 0 and every other score N/A.
+FAILED_BUILD_SHEET = {"Builds with the exact command": ["no"], "Working": ["0"],
+                      **{row: ["N/A"] for row in ("Following the statement", "Creativity", "Performance", "Resources",
+                                                  "Readability", "Architecture", "Factoring", "Cleanliness", "Safety")}}
 
 # For the graders' sandbox scripts: `python3 measure.py <timeout s> <stderr file> <command…>` runs the
 # command and prints "<exit code or timeout> <ms> <peak RSS in KiB> <CPU ms>".
@@ -44,6 +49,15 @@ killer.cancel()
 print("timeout" if ms >= limit * 1000 else os.waitstatus_to_exitcode(status), ms, usage.ru_maxrss,
       round((usage.ru_utime + usage.ru_stime) * 1000))
 """
+
+
+def log_score(value: float | None, best: float, worst: float) -> float:
+    """10 at `best` or below, 0 at `worst` or above or without a value, on a log scale in between."""
+    if value is None or value >= worst:
+        return 0.0
+    if value <= best:
+        return 10.0
+    return round(10 * math.log(worst / value) / math.log(worst / best), 1)
 
 
 def load_module(path: Path, name: str) -> ModuleType:
