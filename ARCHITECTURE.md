@@ -1,6 +1,6 @@
 # Coding-agent benchmark — harness architecture
 
-> Status: **runner and collector written** (2026-10-25). They are tested end to end with a fake `claude`, and every contestant passed the smoke runs. `bench grade` and `bench judge` grade every deliverable, nobody by hand (PLAN §10.32); the report is still a stub.
+> Status: **runner and collector written** (2026-10-25). They are tested end to end with a fake `claude`, and every contestant passed the smoke runs. `bench grade` and `bench judge` grade every deliverable, nobody by hand (PLAN §10.32), and `bench report` gives the spread of every grade over the runs (PLAN §10.33).
 > The plan and the tasks are in [PLAN.md](PLAN.md).
 
 ## 1. Principles
@@ -30,7 +30,7 @@
                  runs/<campaign>/<T>/<C>/r<k>/   (raw, immutable)
                                   │
    bench collect ─────────────────┼──► metrics.json   tokens per model, $, time, turns
-   bench report  ─────────────────┴──► runs/<campaign>/report/  time, cost, tokens
+   bench report  ─────────────────┴──► runs/<campaign>/report/  grades, time, cost, tokens
 ```
 
 ## 3. Tree
@@ -57,7 +57,7 @@ benchmark_ai/
 │   ├── T4-game/                    # + fixture/assets/{opaque,transparent}/; grader/: rules.py (oracle), hidden.py, showcase.py, tiles.py, png.py, fuzz.c
 │   └── smoke/                      # smoke-test tasks (hello, reasoning, big-file, sandbox-audit), loaded with --tasks-dir tasks/smoke
 ├── bench/                          # Python package (✓ = implemented, otherwise stub)
-│   ├── cli.py                      # ✓ validate, plan, run, collect, grade, judge, smoke (run, judge and smoke ask for confirmation) · stub: report
+│   ├── cli.py                      # ✓ validate, plan, run, collect, grade, judge, smoke, report (run, judge and smoke ask for confirmation)
 │   ├── config.py                   # ✓ pydantic schemas, loading, cross-checks
 │   ├── campaign.py                 # ✓ seeded plan, exclusive block
 │   ├── smoke.py                    # ✓ targeted smoke checks of §9: contestant variants, runs, verdicts
@@ -72,7 +72,8 @@ benchmark_ai/
 │   ├── judge.py                    # ✓ blind judge (Opus xhigh): redacted copy, sandbox, two passes → judge.json, PLAN §10.31
 │   ├── pricing.py                  # ✓ tokens × prices (tiers, 5m/1h cache, unknown price = error)
 │   ├── energy.py                   # ✓ nvidia-smi power.draw (GPU only, indicative), integrated to Wh
-│   ├── report.py                   # to come: HTML report
+│   ├── stats.py                    # ✓ mean and 95 % interval, median, σ, min, max; split-half and judge ρ, PLAN §10.33
+│   ├── report.py                   # ✓ HTML report and report.json of a campaign
 │   └── tests/                      # pytest: prices, plan, configs, runner and collector (fake claude)
 └── runs/                           # .gitignore — raw data, and each campaign's report in runs/<campaign>/report/
 ```
@@ -243,7 +244,7 @@ For T1 and T4, `bench/cpp_metrics.py` adds the code metrics of PLAN §10.29 unde
 
 Nobody grades by hand (PLAN §10.32): the grades of `bench grade` and `bench judge` are final. `bench grade` runs first, since the T4 judge needs its screenshots and a failed build's N/A cells must be written before the judge's.
 
-- **`report.py`** (to come) gives time, cost and tokens per contestant and per task (median and spread over the repetitions), with Strata GPU energy as an indication.
+`bench report` (PLAN §10.33) reads each finished run's `grade.md`, `metrics.json` and `judge.json`, and writes `runs/<campaign>/report/index.html`, with a chart per task, and `report.json` with every figure. Per task and contestant: the task score of each run, the mean of its criteria with the N/A left out, counted once every criterion has its grade; each criterion; time, cost, output tokens and the Strata GPU's electricity, as an indication. Each as n, mean and its 95 % confidence interval (`stats.describe`), median, standard deviation, min and max. Per task, the split-half ρ of the ranking of the contestants on the task score, and per judged criterion ρ between the judge's two passes with their mean gap. It needs plotly, the `report` extra: `uv run --extra report bench report c02`.
 
 ## 11. Stack
 
@@ -267,6 +268,6 @@ uv run bench judge c01 [--only …] [--contestants …] [--passes 2] [--seed 0] 
 uv run bench smoke                       # ✓ lists the smoke checks of §9 and their runs, launches nothing
 uv run bench smoke effort sandbox        # ✓ launches their missing runs (real agents), after confirmation, then gives the verdicts
 uv run bench smoke all --report          # ✓ recomputes every verdict from existing runs, launches nothing
-uv run bench report c01                  # phase 5
+uv run --extra report bench report c01   # ✓ runs/c01/report/: index.html, report.json; launches nothing
 uv run pytest                            # ✓ tests: the runner and collector end to end with a fake claude
 ```

@@ -9,6 +9,7 @@
 - Each task is graded on its own, with its own grid and **no weighting** between tasks.
 - A formula on a log scale gives 10 at its best bound or below and 0 at its worst bound or above. The bounds are set on the spread of the c01 and c02 campaigns; the graders hold them next to the formula.
 - The judge applies the criteria as they are written, two passes per run, and the grade kept is their mean.
+- **Over the runs** (PLAN §10.33): a run's *task score* is the mean of its criteria, N/A left out, counted once every criterion has its grade. `bench report` gives, per task and contestant, the mean of each grade and of the task score with its 95 % confidence interval, the median, the standard deviation, the min and the max, and checks with Spearman's ρ that the ranking of the contestants and the judge's grades hold from one set of runs, or one pass, to the next.
 - **When the build fails** (T1, T4), *Working* is 0 and every other score is N/A. **When the deliverable is missing** (T2, T3), every score is 0. Time and cost are still recorded: the model is considered not advanced enough to give reliable results on this exercise.
 
 ## Measured

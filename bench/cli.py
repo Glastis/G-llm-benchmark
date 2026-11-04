@@ -3,6 +3,7 @@ agents, and they ask for confirmation."""
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import typer
@@ -12,6 +13,7 @@ from bench.backends.strata import NotServing
 from bench.campaign import plan_runs
 from bench import grade as grade_lib
 from bench import judge as judge_lib
+from bench import report as report_lib
 from bench import smoke as smoke_lib
 from bench.collect import collect as collect_metrics
 from bench.config import ROOT, load_all, load_contestants, load_tasks
@@ -31,11 +33,6 @@ def _accepted(load) -> str:
 TASKS_DIR = typer.Option(ROOT / "tasks", "--tasks-dir", help="Tasks folder (tasks/smoke for the smoke tests).")
 ONLY = typer.Option(None, help=f"Tasks, comma-separated{_accepted(load_tasks)}.")
 CONTESTANTS = typer.Option(None, help=f"Contestants, comma-separated{_accepted(load_contestants)}.")
-
-
-def _not_yet(phase: str) -> None:
-    typer.echo(f"not implemented yet ({phase})", err=True)
-    raise typer.Exit(2)
 
 
 def _select(items: dict, only: str | None, what: str) -> dict:
@@ -212,5 +209,17 @@ def judge(
 
 @app.command()
 def report(campaign: str) -> None:
-    """HTML report of the campaign."""
-    _not_yet("phase 5")
+    """HTML report of the campaign in runs/<campaign>/report/: per task and contestant, the mean and its
+    95 % interval, median, σ, min and max of every grade, of time and of cost, and how sure the ranking
+    and the judge are. Launches nothing."""
+    if importlib.util.find_spec("plotly") is None:
+        typer.echo("plotly is missing: uv run --extra report bench report …", err=True)
+        raise typer.Exit(2)
+    b = load_all()
+    stats = report_lib.build_report(campaign, b.pricing.electricity_eur_per_kwh)
+    for task, t in stats["tasks"].items():
+        rows = t["contestants"].values()
+        graded = sum(s is not None for row in rows for s in row["run_scores"].values())
+        rho = f"ranking ρ {t['ranking']['rho']:.2f} ({t['ranking']['reading']})" if t["ranking"] else "ranking ρ n/a"
+        typer.echo(f"{task:<22} {graded}/{sum(row['runs'] for row in rows)} runs graded · {rho}")
+    typer.echo(f"→ {report_lib.RUNS_ROOT / campaign / 'report' / 'index.html'}")

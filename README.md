@@ -8,7 +8,7 @@ Cost × quality benchmark of coding agents: Strata running locally, alone or dri
 
 ## Status
 
-`validate`, `plan`, `run`, `collect`, `grade`, `judge` and `smoke` work. Every contestant passed the smoke runs. The four tasks are written. `grade` grades the four tasks where a formula is objective, `judge` has a blind Opus grade the code of T1 and T4, the creativity of T4 and the truth of T2, and nobody grades by hand; `report` is still to come.
+`validate`, `plan`, `run`, `collect`, `grade`, `judge`, `smoke` and `report` work. Every contestant passed the smoke runs. The four tasks are written. `grade` grades the four tasks where a formula is objective, `judge` has a blind Opus grade the code of T1 and T4, the creativity of T4 and the truth of T2, and nobody grades by hand; `report` gives every grade, time and cost over the runs of each contestant, with their spread and how sure the ranking is.
 
 ## Requirements
 
