@@ -59,9 +59,9 @@ benchmark_ai/
 ├── bench/                          # Python package (✓ = implemented, otherwise stub)
 │   ├── cli.py                      # ✓ validate, plan, run, collect, grade, judge, smoke, report (run, judge and smoke ask for confirmation)
 │   ├── config.py                   # ✓ pydantic schemas, loading, cross-checks
-│   ├── campaign.py                 # ✓ seeded plan, exclusive block
+│   ├── campaign.py                 # ✓ seeded plan, exclusive block first
 │   ├── smoke.py                    # ✓ targeted smoke checks of §9: contestant variants, runs, verdicts
-│   ├── runner.py                   # ✓ workspace, Firejail, clock, timeout, statuses, resume, archive
+│   ├── runner.py                   # ✓ workspace, Firejail, clock, timeout, statuses, resume, archive, threads (PLAN §10.35)
 │   ├── backends/
 │   │   ├── anthropic.py            # ✓ claude -p argv + env for Haiku, Sonnet and Opus
 │   │   └── strata.py               # ✓ health, model check, argv + env
@@ -82,7 +82,7 @@ benchmark_ai/
 
 The files are the source of truth. `bench validate` loads them with strict schemas (`bench/config.py`), then cross-checks them: models present in the prices, workers that exist, a preamble with the right paragraph, task statements and fixtures present.
 
-- **[`config/contestants.yaml`](config/contestants.yaml)**: the 16 contestants, with model, effort, `exclusive`, `workers: {contestant, via}` and `max_output_tokens` for Strata.
+- **[`config/contestants.yaml`](config/contestants.yaml)**: the 16 contestants, with model, effort, `exclusive` (uses Strata, checked by `bench validate`), `workers: {contestant, via}` and `max_output_tokens` for Strata.
 - **[`config/pricing.yaml`](config/pricing.yaml)**:
   - dated prices, with the Haiku tiers;
   - an unknown price stays `null`: `validate` flags it, and the cost computation fails instead of counting 0. Every price was checked against the official pricing page on 2026-10-25. The cross-check with Claude Code (§8) caught one error on the first Sonnet run: Sonnet 5.5 cache reads cost $0.10/MTok (0.05 × input, like Opus 5.5), not $0.20.
@@ -94,14 +94,14 @@ Task statements and agent-facing prompts are in English, the language every cont
 
 ## 5. Running a run
 
-1. **Campaign plan**: `campaign.py` produces the list of runs in a seeded order. It groups the `exclusive` contestants into blocks and alternates contestants elsewhere. The resume registry is each run's `run.json`:
+1. **Campaign plan**: `campaign.py` produces the list of runs in a seeded order. It groups the `exclusive` contestants, those that use Strata, into a block at the start and alternates contestants elsewhere. The resume registry is each run's `run.json`:
    - a finished run (`ok`, `timeout`, `error`) is never rerun;
    - an interrupted attempt, or one stopped by the subscription limit, is set aside (folders renamed to `.attempt-<date>`, never deleted), then redone at the next launch;
-   - `bench run` lists the runs to launch and asks for confirmation before starting. At the end, even after a stop, it runs `bench collect` on the campaign. There is no cost cap (PLAN §10.7): `collect` only flags runs that cost more than 3 times their contestant's median in API equivalent.
+   - `bench run` lists the runs to launch and asks for confirmation before starting. With `--thread N` (PLAN §10.35), N runs go at once: the Strata runs one at a time, back to back, a thread that frees up taking the next one whenever none is running, and the others the remote runs in plan order. A stop ends the launches and the runs going on end normally; Ctrl-C kills them, without `run.json`, so they are redone at the next launch. At the end, even after a stop, it runs `bench collect` on the campaign. There is no cost cap (PLAN §10.7): `collect` only flags runs that cost more than 3 times their contestant's median in API equivalent.
 2. **Workspace**: `fixture/` is copied to `~/bench-ws/<run_id>/`, then `git init` and an initial commit. The final diff measures what the agent produced.
 3. **Backend preparation**:
    - Anthropic: `CLAUDE_CODE_OAUTH_TOKEN` must be set, checked outside the clock before each run (and each judge pass). Without it, Claude Code answers "Not logged in" and the run would end as a final error, so the campaign stops before the clock starts and asks to export the token.
-   - Strata: `/health` must answer with the right model loaded, and the check happens outside the clock. The harness **never** starts a model, since loading can freeze the PC for 1 to 3 minutes. If the Coder is not serving, the run stops before the clock starts and asks to launch `strata-coder`. Since the exclusive block comes at the end of the campaign, that is a single intervention. The server log is read during the run (prefill and decode throughput).
+   - Strata: `/health` must answer with the right model loaded, and the check happens outside the clock. The harness **never** starts a model, since loading can freeze the PC for 1 to 3 minutes. If the Coder is not serving, the run stops before the clock starts and asks to launch `strata-coder`. Since the exclusive block comes at the start of the campaign, that is a single intervention. The server log is read during the run (prefill and decode throughput).
 4. **Launch**, in the workspace and under Firejail (`backends/anthropic.py` and `backends/strata.py` build the command):
    ```
    claude -p --model <id> --effort <level> --output-format stream-json --verbose \
@@ -158,7 +158,7 @@ claude -p  (Opus 5.5, xhigh)                  claude -p  (Opus 5.5, xhigh)
   - **Network shared with the host**: Strata on `127.0.0.1:8080` and the Anthropic servers must be reachable. Firejail does not filter by domain. The tasks need no other access, but nothing technically forbids it. This is an accepted limitation, and network calls remain visible in the transcripts.
   - **Hardening**: `caps.drop all`, `nonewprivs`, `noroot`, `nogroups`, `seccomp`, `private-tmp`, `private-dev`, no sound, GPU, video, input devices or U2F key.
   - **User session masked**: `/run/user/<uid>` (SSH agent, gpg, keyring, kwallet, Wayland, PipeWire), the X cookie (`~/.Xauthority`) and both D-Bus buses. **Found and fixed on 2026-10-25**: before this masking, the SSH agent was reachable from the sandbox, so an agent could have pushed to GitHub with the user's keys.
-  - **Remaining limitation**: `x11 none` requires an isolated network, which is incompatible with Strata and Anthropic. The abstract X socket therefore stays reachable, but without a cookie and without `DISPLAY`, and the X server has access control enabled.
+  - **Remaining limitation**: `x11 none` requires an isolated network, which is incompatible with Strata and Anthropic. The abstract X socket therefore stays reachable, but without a cookie and without `DISPLAY`, and the X server has access control enabled. The judge's T4 passes get a `DISPLAY`, that of a private Xvfb started inside their own sandbox, with its own cookie (PLAN §10.34): the user's session stays out of reach.
   - **Per-run temporary folders**: `/tmp`, `/var/tmp` and `/dev/shm` are isolated. `/dev/shm` was shared with the machine, and therefore between runs, before `private-dev` was added. **Checked on 2026-10-25**: a file dropped into `/dev/shm` by one run does not reach the machine and stays invisible to the next run. `claude`, `g++` (build and run), `python3`, `node` and Strata stay reachable.
   - **A blank `CLAUDE_CONFIG_DIR` per run**: no session or todo history carries over from one run to the next.
 - **Answer key out of reach**: the bench repository is never whitelisted, so T3's `build/seeded_bugs.yaml` stays invisible to the agent.
@@ -240,7 +240,7 @@ claude -p  (Opus 5.5, xhigh)                  claude -p  (Opus 5.5, xhigh)
 
 For T1 and T4, `bench/cpp_metrics.py` adds the code metrics of PLAN §10.29 under `figures.code`, one group per criterion of GRADING.md, and a one-line summary per criterion in the *Notes* column of `grade.md`. The strict build and clang-tidy configure the agent's CMake project, so they run in the sandbox; lizard and the rest only read the sources.
 
-`bench judge` (PLAN §10.31) has Opus at `xhigh` grade what no formula measures: the five code criteria of GRADING.md for the tasks with `judge: code` (T1), the same plus creativity for `judge: game` (T4), from the screenshots of the run's `auto/` copied to `_judge/shots/`, and the truth and completeness of the summary for `judge: summary` (T2). Each pass copies the run's `final/` into `~/bench-ws/judge/<random>/`, without `build/`, redacts in the agent's files every contestant id, model name and the run's own workspace path (the fixture's files stay as they are), adds the statement as `_judge/STATEMENT.md`, and runs `claude -p` in the agents' sandbox with `config/judge/<kind>.md` on stdin (`code.md` then `creativity.md` for a game). The judge writes `_judge/judgement.json`; its transcript and config go to the run's `judge/pass<n>/`. Two passes per run, all the first ones before the second ones, each list shuffled with a seed. `judge.json` keeps the passes, the mean grade and the spread; the means go to the *Score* column of `grade.md`, marked `(judge)`. A subscription limit stops the command, and the next launch resumes with the missing passes.
+`bench judge` (PLAN §10.31) has Opus at `xhigh` grade what no formula measures: the five code criteria of GRADING.md for the tasks with `judge: code` (T1), the same plus creativity for `judge: game` (T4), from playing the game and from the screenshots of the run's `auto/` copied to `_judge/shots/`, and the truth and completeness of the summary for `judge: summary` (T2). Each pass copies the run's `final/` into `~/bench-ws/judge/<random>/`, without `build/`, redacts in the agent's files every contestant id, model name and the run's own workspace path (the fixture's files stay as they are), adds the statement as `_judge/STATEMENT.md`, and runs `claude -p` in the agents' sandbox with `config/judge/<kind>.md` on stdin (`code.md` then `creativity.md` for a game). A game's pass runs under `xvfb-run`, inside the sandbox: a private Xvfb screen of 1280 × 800 without GLX, on a random display number, with `SDL_AUDIODRIVER=dummy`, where the judge builds the game, plays it with `xdotool` and looks at its own screenshots taken with `import`, in 45 min instead of 30 (PLAN §10.34). The judge writes `_judge/judgement.json`; its transcript and config go to the run's `judge/pass<n>/`. Two passes per run, all the first ones before the second ones, each list shuffled with a seed; `--thread N` runs N passes at once, and writes their results one at a time. `judge.json` keeps the passes, the mean grade and the spread; the means go to the *Score* column of `grade.md`, marked `(judge)`. A subscription limit stops the command, and the next launch resumes with the missing passes.
 
 Nobody grades by hand (PLAN §10.32): the grades of `bench grade` and `bench judge` are final. `bench grade` runs first, since the T4 judge needs its screenshots and a failed build's N/A cells must be written before the judge's.
 
@@ -256,14 +256,14 @@ Python ≥ 3.12 with **uv** · **Firejail** (sandbox) · `typer` (CLI) · `pydan
 uv run bench validate                    # ✓ configs, prices, tasks (warnings and errors)
 uv run bench plan c01 [--reps 3] [--only T1-simulation,T3-pr-review] [--contestants strata_coder-high,opus-strata] [--seed 0]
                                          # ✓ ordered list of runs, launches nothing
-uv run bench run c01 [same options as plan] [--yes]
+uv run bench run c01 [same options as plan] [--thread 1] [--yes]
                                          # ✓ launches unfinished runs (real agents), after confirmation, then collects
 uv run bench run s01 --tasks-dir tasks/smoke --only hello --contestants haiku --reps 1
                                          # ✓ suggested first real try: one "hello" run on Haiku
 uv run bench collect c01                 # ✓ metrics.json and grade.md per run, summary table, cost alerts
 uv run bench grade c01 [--only …] [--contestants …] [--force]
                                          # ✓ graders on the finished runs (sandboxed builds, no agent): auto.json, grade.md
-uv run bench judge c01 [--only …] [--contestants …] [--passes 2] [--seed 0] [--force] [--yes]
+uv run bench judge c01 [--only …] [--contestants …] [--passes 2] [--seed 0] [--force] [--thread 1] [--yes]
                                          # ✓ blind judge (real agents, Opus xhigh), after confirmation: judge.json, grade.md
 uv run bench smoke                       # ✓ lists the smoke checks of §9 and their runs, launches nothing
 uv run bench smoke effort sandbox        # ✓ launches their missing runs (real agents), after confirmation, then gives the verdicts

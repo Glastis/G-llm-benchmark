@@ -44,7 +44,7 @@ strata_coder-low:
   strata_model: coder-iq1_m # must appear in the "model" field of /health
   effort: low
   max_output_tokens: 65536
-  exclusive: true           # no other run in parallel
+  exclusive: true           # uses Strata: no other Strata run in parallel
 
 strata_coder-medium:
   label: Strata Coder medium
@@ -53,7 +53,7 @@ strata_coder-medium:
   strata_model: coder-iq1_m # must appear in the "model" field of /health
   effort: medium
   max_output_tokens: 65536
-  exclusive: true           # no other run in parallel
+  exclusive: true           # uses Strata: no other Strata run in parallel
 
 strata_coder-high:          # no xhigh: the Strata server already maps high to the Coder's xhigh
   label: Strata Coder high
@@ -62,7 +62,7 @@ strata_coder-high:          # no xhigh: the Strata server already maps high to t
   strata_model: coder-iq1_m # must appear in the "model" field of /health
   effort: high              # forwarding to be checked in smoke test #2
   max_output_tokens: 65536  # 4,096, then 32,768 after the pilot (§10.25), then 65,536 (§10.27); also applies to the Strata workers
-  exclusive: true           # no other run in parallel
+  exclusive: true           # uses Strata: no other Strata run in parallel
 
 opus-low:
   label: Opus low

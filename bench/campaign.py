@@ -28,8 +28,9 @@ def plan_runs(
     reps: int,
     seed: int = 0,
 ) -> list[RunSpec]:
-    """Seeded order. Exclusive runs (Strata) form a single block at the end of the campaign, for a
-    single model load. Elsewhere, two consecutive runs of the same contestant are avoided, so that
+    """Seeded order. Exclusive runs (Strata) form a single block at the start of the campaign, for a
+    single model load: they are the slowest, and with several threads they run one at a time beside
+    the others (§10.35). Elsewhere, two consecutive runs of the same contestant are avoided, so that
     the prompt cache is uniformly cold."""
     rng = random.Random(seed)
     runs = [
@@ -42,7 +43,7 @@ def plan_runs(
     exclusive = [r for r in runs if r.exclusive]
     rng.shuffle(shared)
     rng.shuffle(exclusive)
-    return _spread(shared) + _spread(exclusive)
+    return _spread(exclusive) + _spread(shared)
 
 
 def _spread(runs: list[RunSpec]) -> list[RunSpec]:

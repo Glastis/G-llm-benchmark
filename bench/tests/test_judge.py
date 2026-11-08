@@ -1,6 +1,7 @@
 """The blind judge, with the fake claude: what it gets to see, its verdict, the passes and the sheet."""
 
 import json
+import shutil
 from pathlib import Path
 
 from bench import judge
@@ -81,3 +82,33 @@ def test_a_game_gets_the_screenshots_and_the_creativity_grid(tmp_path):
     assert "{creativity}" not in text and "**Performance /10**" not in text
     result = judge.judge_once(task, run, b, 1, claude_bin=FAKE, sandbox=False, root=tmp_path / "judge")
     assert result["judgement"]["criteria"]["Creativity"]["score"] == 7
+
+
+def test_a_game_is_played_on_its_own_screen(tmp_path):
+    p = judge.RunPaths(ws=Path.home() / "bench-ws-argv-test" / "k", state=Path.home() / "bench-ws-argv-test" / "k.state",
+                       run=tmp_path)                         # creates nothing
+    argv, env = judge.command(_task(tmp_path, "game"), p)
+    inner = argv[argv.index("--") + 1:]
+    assert argv[0] == "firejail" and inner[:3] == ["xvfb-run", "-a", "-n"] and 100 <= int(inner[3]) < 30000
+    assert inner[4:6] == ["-s", "-screen 0 1280x800x24 -extension GLX"] and inner[6:8] == ["claude", "-p"]
+    assert env["SDL_AUDIODRIVER"] == "dummy"
+    argv, env = judge.command(_task(tmp_path / "code", "code"), p)
+    assert "xvfb-run" not in argv and "SDL_AUDIODRIVER" not in env
+    assert "xvfb-run" not in judge.command(_task(tmp_path / "bare", "game"), p, sandbox=False)[0]   # the tests have no screen
+    text = judge.prompt("game")
+    assert "xdotool" in text and "build/city &" in text
+
+
+def test_passes_in_parallel(tmp_path, monkeypatch):
+    monkeypatch.setenv(judge.anthropic.TOKEN_ENV, "test-token")
+    task, b = _task(tmp_path), load_all()
+    first = _run(tmp_path)
+    second = first.with_name("r2")
+    shutil.copytree(first, second)
+    todo = judge.pending("c9", {"T1-simulation": task}, {"opus-haiku"}, passes=2, runs_root=tmp_path / "runs")
+    lines = []
+    judge.judge_campaign(todo, b, threads=3, echo=lines.append, claude_bin=FAKE, sandbox=False, root=tmp_path / "judge")
+    for run in (first, second):
+        report = json.loads((run / "judge.json").read_text())
+        assert sorted(report["passes"]) == ["1", "2"] and report["scores"]["Safety"] == 7
+    assert sum("→ ok" in line for line in lines) == 4

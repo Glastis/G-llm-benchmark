@@ -11,12 +11,12 @@ def test_every_couple_runs_reps_times():
     assert len({r.run_id for r in runs}) == len(runs)
 
 
-def test_exclusive_runs_form_one_block_at_the_end():
+def test_exclusive_runs_form_one_block_at_the_start():
     runs = plan_runs("c01", CONTESTANTS, TASKS, reps=3)
     flags = [r.exclusive for r in runs]
-    first = flags.index(True)
-    assert all(flags[first:]) and not any(flags[:first])
-    assert {r.contestant for r in runs[first:]} == {"strata_coder-low", "strata_coder-medium", "strata_coder-high", "opus-strata", "sonnet-strata"}
+    last = flags.index(False)
+    assert all(flags[:last]) and not any(flags[last:])
+    assert {r.contestant for r in runs[:last]} == {"strata_coder-low", "strata_coder-medium", "strata_coder-high", "opus-strata", "sonnet-strata"}
 
 
 def test_neighbours_differ_outside_the_last_runs():

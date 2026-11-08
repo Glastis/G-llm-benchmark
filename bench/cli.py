@@ -33,6 +33,7 @@ def _accepted(load) -> str:
 TASKS_DIR = typer.Option(ROOT / "tasks", "--tasks-dir", help="Tasks folder (tasks/smoke for the smoke tests).")
 ONLY = typer.Option(None, help=f"Tasks, comma-separated{_accepted(load_tasks)}.")
 CONTESTANTS = typer.Option(None, help=f"Contestants, comma-separated{_accepted(load_contestants)}.")
+THREADS = typer.Option(1, "--thread", min=1, help="Agents running at once (PLAN §10.35).")
 
 
 def _select(items: dict, only: str | None, what: str) -> dict:
@@ -122,9 +123,11 @@ def run(
     contestants: str | None = CONTESTANTS,
     seed: int = typer.Option(0, help="Seed of the run order."),
     tasks_dir: Path = TASKS_DIR,
+    threads: int = THREADS,
     yes: bool = typer.Option(False, "--yes", help="Do not ask for confirmation."),
 ) -> None:
-    """Launches the unfinished runs, in plan order, then collects. Launches real agents."""
+    """Launches the unfinished runs, then collects. Launches real agents. With --thread, the Strata
+    runs go one at a time, back to back, beside the others."""
     b = load_all(tasks_dir)
     if b.errors:
         raise typer.BadParameter("invalid configuration: run `bench validate`")
@@ -141,7 +144,7 @@ def run(
     if not yes and not typer.confirm("Launch?", default=False):
         raise typer.Exit(1)
     try:
-        run_campaign(campaign, b, reps, seed, contestants=chosen, tasks=tasks, echo=typer.echo)
+        run_campaign(campaign, b, reps, seed, threads=threads, contestants=chosen, tasks=tasks, echo=typer.echo)
     except (QuotaReached, NotLoggedIn, NotServing, RunError) as e:
         typer.echo(f"stopped: {e}", err=True)
         raise typer.Exit(3)
@@ -183,6 +186,7 @@ def judge(
     passes: int = typer.Option(2, help="Independent passes per run; the grade kept is their mean."),
     seed: int = typer.Option(0, help="Seed of the judging order."),
     force: bool = typer.Option(False, "--force", help="Judge again the runs that already have a judge.json."),
+    threads: int = THREADS,
     yes: bool = typer.Option(False, "--yes", help="Do not ask for confirmation."),
 ) -> None:
     """The blind judge (Opus, xhigh) on the finished runs: judge.json in each run, the code grades in
@@ -201,7 +205,7 @@ def judge(
     if not yes and not typer.confirm("Launch?", default=False):
         raise typer.Exit(1)
     try:
-        judge_lib.judge_campaign(todo, b, force, echo=typer.echo)
+        judge_lib.judge_campaign(todo, b, force, threads, echo=typer.echo)
     except (QuotaReached, NotLoggedIn, RunError) as e:
         typer.echo(f"stopped: {e}", err=True)
         raise typer.Exit(3)

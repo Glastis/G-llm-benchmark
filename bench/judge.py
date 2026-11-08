@@ -1,7 +1,8 @@
 """The blind LLM judge (PLAN §10.31). Opus at `xhigh` grades what no formula measures: the code criteria
-of GRADING.md for T1 and T4, the creativity of the T4 game from the screenshots its grader took
-(§10.32), the truth and completeness of the T2 summary. Each run is judged twice,
-in two separate sessions, and the grade kept is the mean; the spread shows how steady the judge is.
+of GRADING.md for T1 and T4, the creativity of the T4 game, which it plays on a virtual screen and sees
+on the screenshots its grader took (§10.32, §10.34), the truth and completeness of the T2 summary.
+Each run is judged twice, in two separate sessions, and the grade kept is the mean; the spread shows
+how steady the judge is. `--thread` runs several passes at once (§10.35).
 
 Blind: the judge works on a copy of the run's final workspace under a random name, without the
 transcript, the metrics or any grade, every contestant or model name and the run's own workspace path
@@ -19,13 +20,15 @@ import re
 import secrets
 import shutil
 import time
+from collections import deque
 from pathlib import Path
 from typing import Callable
 
 from bench.backends import anthropic
 from bench.config import ROOT, Bundle, Contestant, Task
 from bench.grade import ATTACHMENTS, fill_sheet, finished_runs
-from bench.runner import RUNS_ROOT, WS_ROOT, QuotaReached, RunPaths, _execute, _final_events, _scrub, classify, sandboxed
+from bench.runner import (RUNS_ROOT, WS_ROOT, QuotaReached, RunPaths, _execute, _final_events, _scrub, classify,
+                          in_parallel, sandboxed)
 
 JUDGE = Contestant(id="judge", label="Blind judge", backend="anthropic", model="claude-opus-5-5", effort="xhigh")
 JUDGE_ROOT = WS_ROOT / "judge"
@@ -33,6 +36,8 @@ PROMPTS = ROOT / "config" / "judge"
 REPORT = "judge.json"
 MARK = " (judge)"
 TIMEOUT_S = 1800
+GAME_TIMEOUT_S = 2700   # a game is also played (§10.34)
+SCREEN = "1280x800x24"
 CODE = ["Readability", "Architecture", "Factoring", "Cleanliness", "Safety"]
 CRITERIA = {"code": CODE, "game": [*CODE, "Creativity"], "summary": ["Truth", "Completeness"]}
 GENERIC_NAMES = ["claude", "anthropic", "opus", "sonnet", "haiku", "strata", "qwen"]
@@ -113,23 +118,40 @@ def parse(path: Path, kind: str) -> dict:
     return verdict
 
 
+def on_screen(argv: list[str]) -> list[str]:
+    """`argv` on a private virtual screen, which xvfb-run starts inside the sandbox, so that the judge
+    can play the game (§10.34). GLX is off: with it, the sandbox's `no3d` makes Xvfb abort, and the
+    games draw with SDL's software renderer. X's abstract sockets live in the network namespace,
+    which every sandbox shares with the host, so each screen takes a random number."""
+    return ["xvfb-run", "-a", "-n", str(random.randrange(100, 30000)), "-s", f"-screen 0 {SCREEN} -extension GLX", *argv]
+
+
+def command(task: Task, p: RunPaths, claude_bin: str = "claude", sandbox: bool = True) -> tuple[list[str], dict[str, str]]:
+    """argv and environment of a pass. A game gets a screen, in the sandbox only: the tests run without."""
+    argv, env = anthropic.command(JUDGE, p.claude_home, p.state)
+    argv = [claude_bin, *argv[1:]]
+    if task.judge == "game" and sandbox:
+        argv, env = on_screen(argv), {**env, "SDL_AUDIODRIVER": "dummy"}   # the sandbox has no sound
+    if sandbox:
+        argv = sandboxed(argv, p)
+        argv.remove(f"--read-only={p.state / 'bin'}")
+    return argv, env
+
+
 def judge_once(task: Task, run_dir: Path, bundle: Bundle, number: int, *, claude_bin: str = "claude",
                sandbox: bool = True, root: Path = JUDGE_ROOT) -> dict:
     """One pass of the judge on one run. Its transcript goes to the run's judge/pass<n>/."""
     record = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
     p = stage(run_dir, task, names(bundle, record), root)
-    argv, env = anthropic.command(JUDGE, p.claude_home, p.state)
-    argv = [claude_bin, *argv[1:]]
-    if sandbox:
-        argv = sandboxed(argv, p)
-        argv.remove(f"--read-only={p.state / 'bin'}")
+    argv, env = command(task, p, claude_bin, sandbox)
     base = {k: os.environ[k] for k in ("PATH", "HOME", "USER", "LANG", "TERM") if k in os.environ}
     out = run_dir / "judge" / f"pass{number}"
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     transcript, stderr = out / "transcript.jsonl", out / "stderr.log"
     t0 = time.monotonic()
-    returncode, timed_out = _execute(argv, prompt(task.judge), {**base, **env}, p.ws, TIMEOUT_S, transcript, stderr)
+    timeout_s = GAME_TIMEOUT_S if task.judge == "game" else TIMEOUT_S
+    returncode, timed_out = _execute(argv, prompt(task.judge), {**base, **env}, p.ws, timeout_s, transcript, stderr)
     wall_s = round(time.monotonic() - t0, 1)
     _scrub([transcript, stderr], os.environ.get(anthropic.TOKEN_ENV))
     status = classify(returncode, timed_out, transcript, stderr)
@@ -193,17 +215,28 @@ def record(run_dir: Path, task: Task, number: int, result: dict, fresh: bool = F
     return report
 
 
-def judge_campaign(todo: list[tuple[int, Path, Task]], bundle: Bundle, force: bool = False,
+def judge_campaign(todo: list[tuple[int, Path, Task]], bundle: Bundle, force: bool = False, threads: int = 1,
                    echo: Callable[[str], None] = print, **kw) -> None:
-    """Runs the passes of `pending`. Stops on the subscription limit or when the subscription token
-    is missing: the next launch resumes."""
-    reset = set()
-    for i, (number, run_dir, task) in enumerate(todo, 1):
+    """Runs the passes of `pending`, `threads` at a time. Each result is recorded in this thread, so
+    that two passes of a run never write its judge.json at once. Stops on the subscription limit or
+    when the subscription token is missing: the next launch resumes."""
+    queue, reset = deque(enumerate(todo, 1)), set()
+
+    def take(running: list) -> tuple | None:
+        return queue.popleft() if queue else None
+
+    def launch(job: tuple) -> Callable[[], dict]:
+        i, (number, run_dir, task) = job
         anthropic.ensure_token()
-        name = "_".join(run_dir.parts[-3:])
-        echo(f"[{i}/{len(todo)}] {name} pass {number} …")
-        result = judge_once(task, run_dir, bundle, number, **kw)
+        echo(f"[{i}/{len(todo)}] {'_'.join(run_dir.parts[-3:])} pass {number} …")
+        return lambda: judge_once(task, run_dir, bundle, number, **kw)
+
+    def finish(job: tuple, result: dict) -> None:
+        i, (number, run_dir, task) = job
         report = record(run_dir, task, number, result, fresh=force and run_dir not in reset)
         reset.add(run_dir)
         grades = " · ".join(f"{k} {v:g}" for k, v in report["scores"].items())
-        echo(f"    {result['status']}, {result['wall_s']:.0f} s · {grades or result.get('error', '')}")
+        echo(f"[{i}/{len(todo)}] {'_'.join(run_dir.parts[-3:])} pass {number} → {result['status']}, "
+             f"{result['wall_s']:.0f} s · {grades or result.get('error', '')}")
+
+    in_parallel(threads, take, launch, finish)

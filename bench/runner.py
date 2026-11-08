@@ -11,11 +11,14 @@ import os
 import shutil
 import signal
 import subprocess
+import threading
 import time
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from bench.backends import anthropic, strata
 from bench.campaign import RunSpec, plan_runs
@@ -41,6 +44,43 @@ class RunError(RuntimeError):
 
 class QuotaReached(RuntimeError):
     pass
+
+
+class Interrupted(RuntimeError):
+    """Ctrl-C stopped the agent: its run gets no run.json, so the next launch sets it aside and redoes it."""
+
+
+class Agents:
+    """The agents running now, so that Ctrl-C stops them all: each runs in its own process group,
+    which the terminal's signal does not reach."""
+
+    def __init__(self) -> None:
+        self.procs: set[subprocess.Popen] = set()
+        self.lock = threading.Lock()
+        self.stopped = False
+
+    def stop(self) -> None:
+        with self.lock:
+            self.stopped = True
+            procs = list(self.procs)
+        for proc in procs:
+            _kill(proc, signal.SIGTERM)
+        deadline = time.monotonic() + KILL_GRACE_S
+        for proc in procs:
+            try:
+                proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                _kill(proc, signal.SIGKILL)
+
+
+AGENTS = Agents()
+
+
+def _kill(proc: subprocess.Popen, sig: int) -> None:
+    try:
+        os.killpg(proc.pid, sig)
+    except ProcessLookupError:
+        pass
 
 
 @dataclass(frozen=True)
@@ -187,19 +227,29 @@ def classify(returncode: int | None, timed_out: bool, transcript: Path, stderr: 
 
 def _execute(argv: list[str], prompt: str, env: dict, cwd: Path, timeout_s: float, out: Path, err: Path) -> tuple[int | None, bool]:
     with out.open("wb") as fout, err.open("wb") as ferr:
-        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=fout, stderr=ferr,
-                                start_new_session=True)
+        with AGENTS.lock:
+            if AGENTS.stopped:
+                raise Interrupted("stopped before it started")
+            proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=fout, stderr=ferr,
+                                    start_new_session=True)
+            AGENTS.procs.add(proc)
         try:
             proc.communicate(prompt.encode("utf-8"), timeout=timeout_s)
-            return proc.returncode, False
+            result = proc.returncode, False
         except subprocess.TimeoutExpired:
-            os.killpg(proc.pid, signal.SIGTERM)
+            _kill(proc, signal.SIGTERM)
             try:
                 proc.wait(timeout=KILL_GRACE_S)
             except subprocess.TimeoutExpired:
-                os.killpg(proc.pid, signal.SIGKILL)
+                _kill(proc, signal.SIGKILL)
                 proc.wait()
-            return None, True
+            result = None, True
+        finally:
+            with AGENTS.lock:
+                AGENTS.procs.discard(proc)
+        if AGENTS.stopped:
+            raise Interrupted("stopped by Ctrl-C")
+        return result
 
 
 def _scrub(paths: list[Path], secret: str | None) -> None:
@@ -280,27 +330,81 @@ def run_one(spec: RunSpec, bundle: Bundle, health: dict | None = None, *, claude
     return status
 
 
-def run_campaign(campaign: str, bundle: Bundle, reps: int, seed: int = 0, *,
+def in_parallel(threads: int, take: Callable[[list], Any], launch: Callable[[Any], Callable[[], Any]],
+                finish: Callable[[Any, Any], None]) -> None:
+    """Runs jobs on `threads` threads (§10.35). `take(running)` gives the next job, given the jobs
+    running, or None to wait for one to end; `launch(job)` does what comes before the clock, in this
+    thread, and returns what to run on a thread; `finish(job, result)` handles each result, in this
+    thread too. The first exception, from any of them, stops the launches: the jobs running end
+    normally, then it is raised. Ctrl-C kills the agents running, whose runs are redone at the next
+    launch."""
+    running, error = {}, None
+    try:
+        with ThreadPoolExecutor(max_workers=threads) as pool:
+            try:
+                while True:
+                    while error is None and len(running) < threads and (job := take(list(running.values()))) is not None:
+                        try:
+                            running[pool.submit(launch(job))] = job
+                        except Exception as e:
+                            error = e
+                    if not running:
+                        break
+                    for future in wait(running, return_when=FIRST_COMPLETED).done:
+                        job = running.pop(future)
+                        try:
+                            finish(job, future.result())
+                        except Exception as e:
+                            error = error or e
+            except KeyboardInterrupt:
+                AGENTS.stop()
+                raise
+    finally:
+        AGENTS.stopped = False   # every thread has ended
+    if error:
+        raise error
+
+
+def run_campaign(campaign: str, bundle: Bundle, reps: int, seed: int = 0, *, threads: int = 1,
                  contestants: dict | None = None, tasks: dict | None = None,
                  echo: Callable[[str], None] = print, **kw) -> dict[str, str]:
-    """Runs the unfinished runs in plan order. Stops on the subscription limit, when the subscription
-    token is missing or when Strata is not serving: finished runs are kept, and the next launch
-    resumes from there."""
+    """Runs the unfinished runs, `threads` at a time (§10.35). Strata serves one model, slower than the
+    others: its runs (`exclusive`) go one at a time, back to back, and a thread that frees up takes the
+    next one whenever none is running; the other threads take the remote runs, in plan order. Stops on
+    the subscription limit, when the subscription token is missing or when Strata is not serving:
+    finished runs are kept, and the next launch resumes from there."""
     specs = plan_runs(campaign, contestants or bundle.contestants, tasks or bundle.tasks, reps, seed)
-    done = {}
-    for i, spec in enumerate(specs, 1):
-        p = paths_for(spec, kw.get("ws_root", WS_ROOT), kw.get("runs_root", RUNS_ROOT))
-        if (st := status_of(p)) in FINAL:
+    done, todo = {}, []
+    for spec in specs:
+        st = status_of(paths_for(spec, kw.get("ws_root", WS_ROOT), kw.get("runs_root", RUNS_ROOT)))
+        if st in FINAL:
             done[spec.run_id] = st
-            continue
+        else:
+            todo.append(spec)
+    local = deque((i, s) for i, s in enumerate(todo, 1) if s.exclusive)
+    remote = deque((i, s) for i, s in enumerate(todo, 1) if not s.exclusive)
+
+    def take(running: list) -> tuple[int, RunSpec] | None:
+        if local and not any(s.exclusive for _, s in running):
+            return local.popleft()
+        return remote.popleft() if remote else None
+
+    def launch(job: tuple[int, RunSpec]) -> Callable[[], str]:
+        i, spec = job
         c = bundle.contestants[spec.contestant]
         if c.backend == "anthropic":
-            anthropic.ensure_token()                           # outside the clock; NotLoggedIn stops everything
+            anthropic.ensure_token()                           # outside the clock; NotLoggedIn stops the launches
         side = strata_side(c, bundle)
-        health = strata.ensure_ready(side) if side else None   # outside the clock; NotServing stops everything
-        echo(f"[{i}/{len(specs)}] {spec.run_id} …")
-        done[spec.run_id] = st = run_one(spec, bundle, health, **kw)
-        echo(f"[{i}/{len(specs)}] {spec.run_id} → {st}")
+        health = strata.ensure_ready(side) if side else None   # outside the clock; NotServing stops the launches
+        echo(f"[{i}/{len(todo)}] {spec.run_id} …")
+        return lambda: run_one(spec, bundle, health, **kw)
+
+    def finish(job: tuple[int, RunSpec], st: str) -> None:
+        i, spec = job
+        done[spec.run_id] = st
+        echo(f"[{i}/{len(todo)}] {spec.run_id} → {st}")
         if st == "quota":
             raise QuotaReached(f"subscription limit reached on {spec.run_id}: launch again later, the campaign will resume there")
+
+    in_parallel(threads, take, launch, finish)
     return done

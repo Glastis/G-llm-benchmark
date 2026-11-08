@@ -2,7 +2,11 @@
 is launched."""
 
 import json
+import os
 import shutil
+import signal
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -12,7 +16,8 @@ from bench.campaign import RunSpec
 from bench.collect import collect, metrics_for
 from bench.config import load_all
 from bench.pricing import Usage, request_cost
-from bench.runner import RunError, paths_for, run_campaign, run_one, sandboxed
+from bench import runner
+from bench.runner import QuotaReached, RunError, paths_for, run_campaign, run_one, sandboxed
 
 FAKE = str(Path(__file__).with_name("fake_claude.py"))
 
@@ -148,3 +153,61 @@ def test_sandbox_refuses_a_workspace_outside_home(tmp_path):
 def test_sandbox_state_joins_the_results(tmp_path):
     _, p, _ = go(tmp_path, "ok")
     assert (p.run / "claude-home").is_dir() and not p.state.exists()
+
+
+def _fake_runs(monkeypatch, outcome=lambda spec: "ok"):
+    """run_one replaced by a stand-in that notes, at each start, how many local and remote runs are going."""
+    monkeypatch.setenv(TOKEN_ENV, "test-token")
+    monkeypatch.setattr(runner.strata, "ensure_ready", lambda c: {"max_context": 1000})
+    lock, going, starts = threading.Lock(), {True: 0, False: 0}, []
+
+    def fake(spec, bundle, health, **kw):
+        with lock:
+            going[spec.exclusive] += 1
+            starts.append((spec.exclusive, going[True], going[False]))
+        time.sleep(0.12 if spec.exclusive else 0.05)
+        with lock:
+            going[spec.exclusive] -= 1
+        return outcome(spec)
+
+    monkeypatch.setattr(runner, "run_one", fake)
+    return starts
+
+
+def test_threads_keep_strata_busy_and_alone(tmp_path, monkeypatch):
+    starts = _fake_runs(monkeypatch)
+    bundle = load_all(make_task(tmp_path, "ok"))
+    chosen = {k: bundle.contestants[k] for k in ("haiku", "sonnet", "strata_coder-low", "strata_coder-high")}
+    done = run_campaign("c00", bundle, reps=3, threads=3, contestants=chosen, echo=lambda s: None,
+                        ws_root=tmp_path / "ws", runs_root=tmp_path / "runs")
+    assert len(done) == 12 and set(done.values()) == {"ok"}
+    assert starts[0][0]                                          # Strata first
+    assert max(local for _, local, _ in starts) == 1             # never two Strata runs at once
+    assert max(local + remote for _, local, remote in starts) == 3
+    remote_starts = [(local, i) for i, (exclusive, local, _) in enumerate(starts) if not exclusive]
+    locals_started = lambda i: sum(exclusive for exclusive, *_ in starts[:i])
+    assert all(local == 1 for local, i in remote_starts if locals_started(i) < 6)   # Strata never idle while it has runs left
+
+
+def test_a_quota_stops_the_launches(tmp_path, monkeypatch):
+    starts = _fake_runs(monkeypatch, outcome=lambda spec: "quota")
+    bundle = load_all(make_task(tmp_path, "ok"))
+    with pytest.raises(QuotaReached):
+        run_campaign("c00", bundle, reps=3, threads=2, contestants={"haiku": bundle.contestants["haiku"]},
+                     echo=lambda s: None, ws_root=tmp_path / "ws", runs_root=tmp_path / "runs")
+    assert len(starts) == 2                                      # the two first ones, then nothing
+
+
+def test_ctrl_c_kills_the_agents_and_their_runs_stay_unfinished(tmp_path, monkeypatch):
+    monkeypatch.setenv(TOKEN_ENV, "test-token")
+    bundle = load_all(make_task(tmp_path, "sleep"))
+    roots = dict(ws_root=tmp_path / "ws", runs_root=tmp_path / "runs")
+    threading.Timer(1.5, os.kill, (os.getpid(), signal.SIGINT)).start()   # a real Ctrl-C, which wakes the waiting thread
+    t0 = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        run_campaign("c00", bundle, reps=2, threads=2, claude_bin=FAKE, sandbox=False, echo=lambda s: None,
+                     contestants={"haiku": bundle.contestants["haiku"]}, **roots)
+    assert time.monotonic() - t0 < 10 and not runner.AGENTS.procs   # the fake agents sleep 30 s
+    for rep in (1, 2):
+        p = paths_for(RunSpec("c00", "t", "haiku", rep, False), **roots)
+        assert p.run.is_dir() and not p.record.exists()          # redone at the next launch

@@ -158,6 +158,10 @@ def load_all(tasks_dir: Path = ROOT / "tasks") -> Bundle:
                     orchestrator_preamble(ROOT / c.preamble, c.workers.via)
                 except KeyError:
                     b.errors.append(f"{c.id}: no '{c.workers.via}' paragraph in {c.preamble}")
+        worker = b.contestants.get(c.workers.contestant) if c.workers else None
+        local = c.backend == "strata" or (worker is not None and worker.backend == "strata")
+        if c.exclusive != local:   # the threads of `bench run` keep the Strata runs one at a time (PLAN §10.35)
+            b.errors.append(f"{c.id}: exclusive must be {str(local).lower()}, since it {'uses' if local else 'does not use'} Strata")
     for model, price in b.pricing.models.items():
         for what in price.unknown():
             b.warnings.append(f"unknown price: {model} {what}")
