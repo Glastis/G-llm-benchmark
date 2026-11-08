@@ -136,22 +136,31 @@ def grade_run(task: Task, run_dir: Path, force: bool = False) -> dict:
     elif not (run_dir / "final").is_dir():
         report = {"error": "no final workspace"}
     else:
-        tree = stage(run_dir / "final", "_".join(run_dir.parts[-4:]))
-        try:
-            report = load_grader(task).grade(tree)
-            attached = run_dir / ATTACHMENTS
-            shutil.rmtree(attached, ignore_errors=True)
-            for rel in report.get("attachments", []):
-                if (tree / rel).is_file():
-                    attached.mkdir(exist_ok=True)
-                    shutil.copy2(tree / rel, attached / Path(rel).name)
-        finally:
-            shutil.rmtree(tree, ignore_errors=True)
+        report = _grade(task, run_dir)
         out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     sheet = run_dir / "grade.md"   # refreshed even from a cached report
     if report.get("sheet") and sheet.is_file():
         sheet.write_text(fill_sheet(sheet.read_text(encoding="utf-8"), report["sheet"]), encoding="utf-8")
     return report
+
+
+def _grade(task: Task, run_dir: Path) -> dict:
+    """The grader's report on a staged copy of the final workspace, its attachments kept in the run."""
+    tree = stage(run_dir / "final", "_".join(run_dir.parts[-4:]))
+    try:
+        report = load_grader(task).grade(tree)
+        _attach(report, tree, run_dir / ATTACHMENTS)
+    finally:
+        shutil.rmtree(tree, ignore_errors=True)
+    return report
+
+
+def _attach(report: dict, tree: Path, attached: Path) -> None:
+    shutil.rmtree(attached, ignore_errors=True)
+    for rel in report.get("attachments", []):
+        if (tree / rel).is_file():
+            attached.mkdir(exist_ok=True)
+            shutil.copy2(tree / rel, attached / Path(rel).name)
 
 
 def finished_runs(campaign: str, runs_root: Path = RUNS_ROOT) -> list[Path]:

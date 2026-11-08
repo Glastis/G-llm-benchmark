@@ -26,6 +26,21 @@ def _double(rows: list[bytes]) -> list[bytes]:
     return [row for row in doubled for _ in range(2)]
 
 
+def _opaque_runs(alpha: list[int]) -> list[tuple[int, int]]:
+    """The runs of fully opaque pixels in a row of alpha values: (first pixel, pixel after the last)."""
+    runs, x = [], 0
+    while x < len(alpha):
+        if alpha[x] != 255:
+            x += 1
+            continue
+        end = x
+        while end < len(alpha) and alpha[end] == 255:
+            end += 1
+        runs.append((x, end))
+        x = end
+    return runs
+
+
 class Tile:
     def __init__(self, name: str, rgba: list[bytes], scale: int):
         rows = _rgb(rgba)
@@ -34,18 +49,7 @@ class Tile:
             rows, alpha = _double(rows), [[a for a in row for _ in range(2)] for row in alpha for _ in range(2)]
         self.name, self.rows = name, rows
         # The runs of fully opaque pixels, per row: (row, first pixel, their RGB bytes).
-        self.runs = []
-        for y, row in enumerate(alpha):
-            x = 0
-            while x < len(row):
-                if row[x] == 255:
-                    end = x
-                    while end < len(row) and row[end] == 255:
-                        end += 1
-                    self.runs.append((y, x, rows[y][3 * x:3 * end]))
-                    x = end
-                else:
-                    x += 1
+        self.runs = [(y, x, rows[y][3 * x:3 * end]) for y, row in enumerate(alpha) for x, end in _opaque_runs(row)]
 
     def drawn_in(self, cell: list[bytes]) -> bool:
         return bool(self.runs) and all(cell[y][3 * x:3 * x + len(px)] == px for y, x, px in self.runs)
@@ -121,12 +125,9 @@ def road_shape(cell: tuple[int, int], roads: set[tuple[int, int]]) -> tuple[str,
     return shape, sides
 
 
-def checks(shots: dict[str, Shot], buildings: list[tuple[str, str, list[tuple[int, int]]]],
-           roads: tuple[str, set[tuple[int, int]]]) -> tuple[dict, dict]:
-    """`buildings`: (screenshot, type, cells) of each building placed; `roads`: the screenshot of the
-    road layout and its cells. Returns the checks and the figures."""
-    covered = sum(bool(s.cells[c]) for s in shots.values() for c in s.cells)
-    total = sum(len(s.cells) for s in shots.values())
+def _buildings(shots: dict[str, Shot],
+               buildings: list[tuple[str, str, list[tuple[int, int]]]]) -> tuple[dict[str, bool], list[str]]:
+    """Whether each type of building shows two looks or more, and the pairs of types drawn alike."""
     by_type: dict[str, set[str]] = {}
     composed = {}
     for shot, kind, cells in buildings:
@@ -134,6 +135,12 @@ def checks(shots: dict[str, Shot], buildings: list[tuple[str, str, list[tuple[in
         by_type.setdefault(kind, set()).update(signatures)
         composed[kind] = composed.get(kind, True) and len(signatures) >= 2
     same = [f"{a}={b}" for a, b in combinations(sorted(by_type), 2) if by_type[a] == by_type[b]]
+    return composed, same
+
+
+def _roads(shots: dict[str, Shot], roads: tuple[str, set[tuple[int, int]]]) -> tuple[list[str], int, int]:
+    """The pairs of road shapes that share a look, and how many layouts of neighbours are drawn alike,
+    out of how many."""
     shot, cells = roads
     looks: dict[str, set[str]] = {}
     groups: dict[frozenset, set[str]] = {}
@@ -143,16 +150,26 @@ def checks(shots: dict[str, Shot], buildings: list[tuple[str, str, list[tuple[in
         groups.setdefault(sides, set()).add(shots[shot].looks[c])
     main = [s for s in ("horizontal", "vertical", "corner", "cross") if s in looks]
     shared = [f"{a}~{b}" for a, b in combinations(main, 2) if looks[a] & looks[b]]
-    consistent = sum(len(v) == 1 for v in groups.values())
+    return shared, sum(len(v) == 1 for v in groups.values()), len(groups)
+
+
+def checks(shots: dict[str, Shot], buildings: list[tuple[str, str, list[tuple[int, int]]]],
+           roads: tuple[str, set[tuple[int, int]]]) -> tuple[dict, dict]:
+    """`buildings`: (screenshot, type, cells) of each building placed; `roads`: the screenshot of the
+    road layout and its cells. Returns the checks and the figures."""
+    covered = sum(bool(s.cells[c]) for s in shots.values() for c in s.cells)
+    total = sum(len(s.cells) for s in shots.values())
+    composed, same = _buildings(shots, buildings)
+    shared, consistent, layouts = _roads(shots, roads)
     return {
         "tiles-used": covered * 2 >= total,
         "buildings-composed": bool(composed) and all(composed.values()),
         "types-distinct": not same,
-        "roads-join": not shared and consistent == len(groups),
+        "roads-join": not shared and consistent == layouts,
     }, {
         "tile_share": round(covered / total, 3) if total else None,
         "composed": composed,
         "same_tiles": same,
         "road_shapes_sharing_a_look": shared,
-        "road_layouts_drawn_alike": f"{consistent}/{len(groups)}",
+        "road_layouts_drawn_alike": f"{consistent}/{layouts}",
     }

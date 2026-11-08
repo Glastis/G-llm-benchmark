@@ -85,29 +85,40 @@ def strip(text: str) -> tuple[str, list[tuple[int, str]]]:
     out, comments = [], []
     i, n, line = 0, len(text), 1
     while i < n:
-        c = text[i]
         if text.startswith("//", i) or text.startswith("/*", i):
-            end = text.find("\n", i) if c == "/" and text[i + 1] == "/" else text.find("*/", i + 2) + 2
-            end = n if end < 2 or end == -1 else end
+            end = _comment_end(text, i)
             comment = text[i:end]
             comments += [(line + k, part) for k, part in enumerate(comment.split("\n"))]
             out.append(re.sub(r"[^\n]", " ", comment))
-        elif c in "\"'":
-            end = i + 1
-            while end < n and text[end] != c and text[end] != "\n":
-                end += 2 if text[end] == "\\" else 1
-            end = min(end + 1, n)
-            out.append(c + re.sub(r"[^\n]", " ", text[i + 1:end - 1]) + c)
-        elif text.startswith('R"', i) and (m := re.match(r'R"([^(\s]*)\(', text[i:])):
-            close = text.find(f"){m.group(1)}\"", i)
-            end = n if close == -1 else close + len(m.group(1)) + 2
-            out.append('""' + re.sub(r"[^\n]", " ", text[i + 2:end]))
         else:
-            end = i + 1
-            out.append(c)
+            end, kept = _code_at(text, i)
+            out.append(kept)
         line += text.count("\n", i, end)
         i = end
     return "".join(out), comments
+
+
+def _comment_end(text: str, i: int) -> int:
+    """The end of the comment that starts at `i`, the end of the text when it is not closed."""
+    n = len(text)
+    end = text.find("\n", i) if text[i] == "/" and text[i + 1] == "/" else text.find("*/", i + 2) + 2
+    return n if end < 2 or end == -1 else end
+
+
+def _code_at(text: str, i: int) -> tuple[int, str]:
+    """Outside a comment: the end of the literal or the character at `i`, and what `strip` keeps of it."""
+    c, n = text[i], len(text)
+    if c in "\"'":
+        end = i + 1
+        while end < n and text[end] != c and text[end] != "\n":
+            end += 2 if text[end] == "\\" else 1
+        end = min(end + 1, n)
+        return end, c + re.sub(r"[^\n]", " ", text[i + 1:end - 1]) + c
+    if text.startswith('R"', i) and (m := re.match(r'R"([^(\s]*)\(', text[i:])):
+        close = text.find(f"){m.group(1)}\"", i)
+        end = n if close == -1 else close + len(m.group(1)) + 2
+        return end, '""' + re.sub(r"[^\n]", " ", text[i + 2:end])
+    return i + 1, c
 
 
 class Scopes:
@@ -119,23 +130,23 @@ class Scopes:
         self.top_statements: list[str] = []
         stack, start, line = [], 0, 1
         for i, c in enumerate(code):
-            if c == "\n":
-                line += 1
-            elif c == "{":
-                block = {"header": code[start:i].strip(), "line": line, "parents": [b["header"] for b in stack], "commas": 0}
-                self.blocks.append(block)
-                stack.append(block)
-                start = i + 1
-            elif c == "}":
-                if stack:
-                    stack.pop()
-                start = i + 1
-            elif c == ";":
-                if all(NAMESPACE.match(_clean(b["header"])) for b in stack):
-                    self.top_statements.append(_clean(code[start:i]))
+            line += c == "\n"
+            if c in "{};":
+                self._delimit(code, start, i, line, stack)
                 start = i + 1
             elif c == "," and stack:
                 stack[-1]["commas"] += 1
+
+    def _delimit(self, code: str, start: int, i: int, line: int, stack: list[dict]) -> None:
+        """The `{`, `}` or `;` at `i`, after the code that starts at `start`."""
+        if code[i] == "{":
+            block = {"header": code[start:i].strip(), "line": line, "parents": [b["header"] for b in stack], "commas": 0}
+            self.blocks.append(block)
+            stack.append(block)
+        elif code[i] == "}" and stack:
+            stack.pop()
+        elif code[i] == ";" and all(NAMESPACE.match(_clean(b["header"])) for b in stack):
+            self.top_statements.append(_clean(code[start:i]))
 
     def inside(self, words: str, first: int, last: int) -> bool:
         """Whether a block opened between these lines has `words` in its header or in an enclosing one."""
@@ -259,6 +270,112 @@ def _commented_code(comment: str) -> bool:
     return bool(re.search(r"[;{}]\s*$|^(if|for|while|return|std::|#include)\b", body))
 
 
+def _readability(analysed: dict[Path, lizard.FileInformation], functions: list[lizard.FunctionInfo], cognitive: dict,
+                 comments: int, lines: int) -> dict:
+    complexities = list(cognitive.values()) + [0] * max(0, len(functions) - len(cognitive))
+    return {
+        "function_lines": _spread([fn.nloc for fn in functions]),
+        "cognitive_complexity": _spread(complexities) if cognitive else None,
+        "comments": _rate(comments, lines),
+        "file_lines": _spread([a.nloc for a in analysed.values()]),
+    }
+
+
+def _header_bodies(code: str, functions: list[lizard.FunctionInfo]) -> list[lizard.FunctionInfo]:
+    """The functions a header defines, templates and constexpr ones excepted: those belong there."""
+    scopes, code_lines = Scopes(code), code.split("\n")
+    bodies = []
+    for fn in functions:
+        head = " ".join(code_lines[max(0, fn.start_line - 3):fn.start_line])
+        if re.search(r"\btemplate\s*<|\bconst(expr|eval)\b", head) \
+                or scopes.inside(r"\btemplate\s*<", fn.start_line, fn.start_line + 2):
+            continue
+        bodies.append(fn)
+    return bodies
+
+
+def _in_cpp(codes: list[str]) -> Counter:
+    """What the blocks and top statements of these .cpp files define, by kind (see `_kind`)."""
+    found = Counter()
+    for code in codes:
+        scopes = Scopes(code)
+        found.update(kind for b in scopes.blocks if (kind := _kind(b)))
+        found["constant"] += sum(map(_constant, scopes.top_statements))
+    return found
+
+
+def _architecture(tree: Path, files: list[Path], texts: dict[Path, str], code_of: dict[Path, str],
+                  analysed: dict[Path, lizard.FileInformation], lines: int) -> dict:
+    """Implementations in headers, "config" in the .cpp files, includes."""
+    bodies = [fn for f in files if f.suffix in HEADER_SUFFIXES for fn in _header_bodies(code_of[f], analysed[f].function_list)]
+    in_cpp = _in_cpp([code_of[f] for f in files if f.suffix not in HEADER_SUFFIXES])
+    graph, sdl = _includes(tree, files, texts)
+    with_sdl = {f for f in files if f in sdl or _reach(graph, f) & sdl}
+    function_lines = sum(fn.nloc for a in analysed.values() for fn in a.function_list)
+    return {
+        "header_function_bodies": {"count": len(bodies), "share_of_function_lines":
+                                   round(sum(fn.nloc for fn in bodies) / function_lines, 3) if function_lines else None},
+        "in_cpp": {"enums": in_cpp["enum"], "classes": in_cpp["class"], "constants": in_cpp["constant"]},
+        "includes_per_file": round(sum(map(len, graph.values())) / len(files), 2) if files else None,
+        "files_in_include_cycles": sum(1 for f in files if f in _reach(graph, f)),
+        "sdl_free_share": round(sum(analysed[f].nloc for f in files if f not in with_sdl) / lines, 3) if lines else None,
+    }
+
+
+def _factoring(tokens: dict[Path, list[tuple[str, int]]], all_tokens: list[str], lines: int) -> dict:
+    units = [("ID" if tok not in KEYWORDS and re.match(r"[A-Za-z_]", tok) else "N" if tok[0].isdigit() else tok, (i, line))
+             for i, file_tokens in enumerate(tokens.values()) for tok, line in file_tokens]
+    duplicated = _duplicated_lines(units)
+    code_lines = {(i, line) for i, file_tokens in enumerate(tokens.values()) for _, line in file_tokens}
+    return {
+        "duplicated_share": round(len(duplicated & code_lines) / len(code_lines), 3) if code_lines else None,
+        "else_if_chains": _rate(_else_if_chains(all_tokens), lines),
+        "switches": _rate(all_tokens.count("switch"), lines),
+    }
+
+
+def _cmake(tree: Path) -> dict:
+    """What the CMake files of the tree hardcode or set by hand."""
+    cmake = "\n".join(_read(p) for p in tree.rglob("*") if p.is_file() and (p.name == "CMakeLists.txt" or p.suffix == ".cmake")
+                      and not SKIPPED_DIRS & set(p.relative_to(tree).parts))
+    return {
+        "hardcoded_paths": len(re.findall(r"[\"\s(](/(usr|home|opt|tmp)/[^\s\")]*)", cmake)),
+        "sets_cmake_cxx_flags": bool(re.search(r"\bCMAKE_CXX_FLAGS\b", cmake)),
+        "target_compile_options": bool(re.search(r"\btarget_compile_options\b", cmake)),
+        "pkg_config": bool(re.search(r"\b(pkg_check_modules|pkg_search_module|PkgConfig)\b", cmake)),
+    }
+
+
+def _cleanliness(tree: Path, code: str, comments: list[tuple[Path, int, str]], created: list[str], by_check: dict,
+                 lines: int) -> dict:
+    leftovers = [f for f in created if Path(f).suffix not in KEPT_SUFFIXES and Path(f).name not in KEPT_FILES
+                 and not (SKIPPED_DIRS | KEPT_DIRS) & set(Path(f).parts[:-1])]
+    return {
+        "todos": _rate(sum(bool(re.search(r"\b(TODO|FIXME|XXX|HACK)\b", t)) for *_, t in comments), lines),
+        "commented_code_lines": _rate(sum(_commented_code(t) for *_, t in comments), lines),
+        "leftover_files": leftovers[:20],
+        "defines": _rate(len(re.findall(r"^\s*#\s*define\s+\w+\s+\S", code, re.M)), lines),
+        "plain_enums": _rate(len(re.findall(r"\benum\b(?!\s+(class|struct)\b)", code)), lines),
+        "cpp20_idioms": {name: len(re.findall(rx, code)) for name, rx in IDIOMS.items()},
+        "else_after_return": _rate(by_check.get("readability-else-after-return", 0), lines),
+        "cmake": _cmake(tree),
+    }
+
+
+def _safety(tree: Path, grade_dir: Path, code: str, all_tokens: list[str], by_check: dict, lines: int) -> dict:
+    previous = [None, *all_tokens[:-1]]
+    manual = sum(1 for tok, before in zip(all_tokens, previous)   # `= delete` is a deleted function
+                 if tok == "new" and before != "operator" or tok == "delete" and before not in ("operator", "="))
+    manual += len(re.findall(r"\b(malloc|calloc|realloc|free)\s*\(", code))
+    strict_warnings = len({w for w in re.findall(r"^(/[^:\n]+:\d+:\d+): warning: .*\[(-W[\w-]+)\]",
+                                                 _read(grade_dir / "strict.log"), re.M) if w[0].startswith(str(tree))})
+    return {
+        "manual_memory": _rate(manual, lines),
+        "strict_warnings": _rate(strict_warnings, lines),
+        "tidy": {check: n for check, n in by_check.items() if check != "readability-else-after-return"},
+    }
+
+
 def measure(tree: Path, grade_dir: Path, created: list[str]) -> dict:
     """The metrics of the sources of `tree`, with the logs that `sandbox_script` left in `grade_dir`.
     `created`: the files of the tree that the fixture does not have."""
@@ -274,91 +391,14 @@ def measure(tree: Path, grade_dir: Path, created: list[str]) -> dict:
     tokens = {f: [(m.group(0), code_of[f].count("\n", 0, m.start()) + 1) for m in TOKEN.finditer(code_of[f])] for f in files}
     all_tokens = [tok for f in files for tok, _ in tokens[f]]
     comments = [(f, line, text) for f in files for line, text in stripped[f][1] if text.strip(" /*")]
-
-    # Architecture: implementations in headers, "config" in the .cpp files, includes.
-    header_bodies, header_body_lines, in_cpp = 0, 0, Counter()
-    for f in files:
-        scopes = Scopes(code_of[f])
-        if f.suffix in HEADER_SUFFIXES:
-            code_lines = code_of[f].split("\n")
-            for fn in analysed[f].function_list:
-                head = " ".join(code_lines[max(0, fn.start_line - 3):fn.start_line])
-                if re.search(r"\btemplate\s*<|\bconst(expr|eval)\b", head) \
-                        or scopes.inside(r"\btemplate\s*<", fn.start_line, fn.start_line + 2):
-                    continue
-                header_bodies += 1
-                header_body_lines += fn.nloc
-        else:
-            in_cpp.update(kind for b in scopes.blocks if (kind := _kind(b)))
-            in_cpp["constant"] += sum(map(_constant, scopes.top_statements))
-    graph, sdl = _includes(tree, files, texts)
-    with_sdl = {f for f in files if f in sdl or _reach(graph, f) & sdl}
-    cycles = sum(1 for f in files if f in _reach(graph, f))
-    function_lines = sum(fn.nloc for fn in functions)
-
-    # Factoring.
-    units = [("ID" if tok not in KEYWORDS and re.match(r"[A-Za-z_]", tok) else "N" if tok[0].isdigit() else tok, (i, line))
-             for i, f in enumerate(files) for tok, line in tokens[f]]
-    duplicated = _duplicated_lines(units)
-    code_lines = {(i, line) for i, f in enumerate(files) for _, line in tokens[f]}
-
-    # Cleanliness and safety.
     code = "\n".join(code_of.values())
-    defines = len(re.findall(r"^\s*#\s*define\s+\w+\s+\S", code, re.M))
-    previous = [None, *all_tokens[:-1]]
-    manual = sum(1 for tok, before in zip(all_tokens, previous)   # `= delete` is a deleted function
-                 if tok == "new" and before != "operator" or tok == "delete" and before not in ("operator", "="))
-    manual += len(re.findall(r"\b(malloc|calloc|realloc|free)\s*\(", code))
-    cmake = "\n".join(_read(p) for p in tree.rglob("*") if p.is_file() and (p.name == "CMakeLists.txt" or p.suffix == ".cmake")
-                      and not SKIPPED_DIRS & set(p.relative_to(tree).parts))
-    strict_warnings = len({w for w in re.findall(r"^(/[^:\n]+:\d+:\d+): warning: .*\[(-W[\w-]+)\]",
-                                                 _read(grade_dir / "strict.log"), re.M) if w[0].startswith(str(tree))})
-    leftovers = [f for f in created if Path(f).suffix not in KEPT_SUFFIXES and Path(f).name not in KEPT_FILES
-                 and not (SKIPPED_DIRS | KEPT_DIRS) & set(Path(f).parts[:-1])]
-    by_check = tidy["by_check"]
-    cognitive = list(tidy["cognitive"].values()) + [0] * max(0, len(functions) - len(tidy["cognitive"]))
-
     return {
         "lines": lines, "files": len(files), "functions": len(functions),
-        "readability": {
-            "function_lines": _spread([fn.nloc for fn in functions]),
-            "cognitive_complexity": _spread(cognitive) if tidy["cognitive"] else None,
-            "comments": _rate(len(comments), lines),
-            "file_lines": _spread([a.nloc for a in analysed.values()]),
-        },
-        "architecture": {
-            "header_function_bodies": {"count": header_bodies, "share_of_function_lines":
-                                       round(header_body_lines / function_lines, 3) if function_lines else None},
-            "in_cpp": {"enums": in_cpp["enum"], "classes": in_cpp["class"], "constants": in_cpp["constant"]},
-            "includes_per_file": round(sum(map(len, graph.values())) / len(files), 2) if files else None,
-            "files_in_include_cycles": cycles,
-            "sdl_free_share": round(sum(analysed[f].nloc for f in files if f not in with_sdl) / lines, 3) if lines else None,
-        },
-        "factoring": {
-            "duplicated_share": round(len(duplicated & code_lines) / len(code_lines), 3) if code_lines else None,
-            "else_if_chains": _rate(_else_if_chains(all_tokens), lines),
-            "switches": _rate(all_tokens.count("switch"), lines),
-        },
-        "cleanliness": {
-            "todos": _rate(sum(bool(re.search(r"\b(TODO|FIXME|XXX|HACK)\b", t)) for *_, t in comments), lines),
-            "commented_code_lines": _rate(sum(_commented_code(t) for *_, t in comments), lines),
-            "leftover_files": leftovers[:20],
-            "defines": _rate(defines, lines),
-            "plain_enums": _rate(len(re.findall(r"\benum\b(?!\s+(class|struct)\b)", code)), lines),
-            "cpp20_idioms": {name: len(re.findall(rx, code)) for name, rx in IDIOMS.items()},
-            "else_after_return": _rate(by_check.get("readability-else-after-return", 0), lines),
-            "cmake": {
-                "hardcoded_paths": len(re.findall(r"[\"\s(](/(usr|home|opt|tmp)/[^\s\")]*)", cmake)),
-                "sets_cmake_cxx_flags": bool(re.search(r"\bCMAKE_CXX_FLAGS\b", cmake)),
-                "target_compile_options": bool(re.search(r"\btarget_compile_options\b", cmake)),
-                "pkg_config": bool(re.search(r"\b(pkg_check_modules|pkg_search_module|PkgConfig)\b", cmake)),
-            },
-        },
-        "safety": {
-            "manual_memory": _rate(manual, lines),
-            "strict_warnings": _rate(strict_warnings, lines),
-            "tidy": {check: n for check, n in by_check.items() if check != "readability-else-after-return"},
-        },
+        "readability": _readability(analysed, functions, tidy["cognitive"], len(comments), lines),
+        "architecture": _architecture(tree, files, texts, code_of, analysed, lines),
+        "factoring": _factoring(tokens, all_tokens, lines),
+        "cleanliness": _cleanliness(tree, code, comments, created, tidy["by_check"], lines),
+        "safety": _safety(tree, grade_dir, code, all_tokens, tidy["by_check"], lines),
     }
 
 

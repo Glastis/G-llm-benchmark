@@ -142,41 +142,52 @@ def subagents_json(path: Path = ROOT / "config" / "agents" / "haiku-worker.json"
 def load_all(tasks_dir: Path = ROOT / "tasks") -> Bundle:
     b = Bundle(load_contestants(), load_pricing(), load_tasks(tasks_dir))
     for c in b.contestants.values():
-        if c.model not in b.pricing.models:
-            b.errors.append(f"{c.id}: model {c.model} missing from pricing.yaml")
-        if c.backend == "strata" and not c.strata_model:
-            b.errors.append(f"{c.id}: strata_model missing")
-        if c.preamble and not (ROOT / c.preamble).is_file():
-            b.errors.append(f"{c.id}: preamble {c.preamble} not found")
-        if c.workers:
-            if c.workers.contestant not in b.contestants:
-                b.errors.append(f"{c.id}: unknown worker {c.workers.contestant}")
-            if not c.preamble:
-                b.errors.append(f"{c.id}: an orchestrated contestant needs a preamble")
-            else:
-                try:
-                    orchestrator_preamble(ROOT / c.preamble, c.workers.via)
-                except KeyError:
-                    b.errors.append(f"{c.id}: no '{c.workers.via}' paragraph in {c.preamble}")
-        worker = b.contestants.get(c.workers.contestant) if c.workers else None
-        local = c.backend == "strata" or (worker is not None and worker.backend == "strata")
-        if c.exclusive != local:   # the threads of `bench run` keep the Strata runs one at a time (PLAN §10.35)
-            b.errors.append(f"{c.id}: exclusive must be {str(local).lower()}, since it {'uses' if local else 'does not use'} Strata")
+        _check_contestant(c, b)
     for model, price in b.pricing.models.items():
-        for what in price.unknown():
-            b.warnings.append(f"unknown price: {model} {what}")
+        b.warnings += [f"unknown price: {model} {what}" for what in price.unknown()]
     if b.pricing.electricity_eur_per_kwh is None:
         b.warnings.append("electricity rate not set (Strata GPU energy shown without €)")
     for t in b.tasks.values():
-        if not (t.dir / t.prompt).is_file():
-            b.errors.append(f"{t.id}: task statement {t.prompt} not found")
-        elif "TODO" in t.prompt_text():
-            b.warnings.append(f"{t.id}: task statement not written yet")
-        if t.grading_sheet and not (ROOT / t.grading_sheet).is_file():
-            b.errors.append(f"{t.id}: grading sheet {t.grading_sheet} not found")
-        if t.grader and not (t.dir / t.grader).is_file():
-            b.errors.append(f"{t.id}: grader {t.grader} not found")
-        fixture = t.dir / t.fixture
-        if not fixture.is_dir() or not any(p.name != ".gitkeep" for p in fixture.iterdir()):
-            b.warnings.append(f"{t.id}: empty fixture")
+        _check_task(t, b)
     return b
+
+
+def _check_contestant(c: Contestant, b: Bundle) -> None:
+    if c.model not in b.pricing.models:
+        b.errors.append(f"{c.id}: model {c.model} missing from pricing.yaml")
+    if c.backend == "strata" and not c.strata_model:
+        b.errors.append(f"{c.id}: strata_model missing")
+    if c.preamble and not (ROOT / c.preamble).is_file():
+        b.errors.append(f"{c.id}: preamble {c.preamble} not found")
+    if c.workers:
+        _check_workers(c, b)
+    worker = b.contestants.get(c.workers.contestant) if c.workers else None
+    local = c.backend == "strata" or (worker is not None and worker.backend == "strata")
+    if c.exclusive != local:   # the threads of `bench run` keep the Strata runs one at a time (PLAN §10.35)
+        b.errors.append(f"{c.id}: exclusive must be {str(local).lower()}, since it {'uses' if local else 'does not use'} Strata")
+
+
+def _check_workers(c: Contestant, b: Bundle) -> None:
+    if c.workers.contestant not in b.contestants:
+        b.errors.append(f"{c.id}: unknown worker {c.workers.contestant}")
+    if not c.preamble:
+        b.errors.append(f"{c.id}: an orchestrated contestant needs a preamble")
+        return
+    try:
+        orchestrator_preamble(ROOT / c.preamble, c.workers.via)
+    except KeyError:
+        b.errors.append(f"{c.id}: no '{c.workers.via}' paragraph in {c.preamble}")
+
+
+def _check_task(t: Task, b: Bundle) -> None:
+    if not (t.dir / t.prompt).is_file():
+        b.errors.append(f"{t.id}: task statement {t.prompt} not found")
+    elif "TODO" in t.prompt_text():
+        b.warnings.append(f"{t.id}: task statement not written yet")
+    if t.grading_sheet and not (ROOT / t.grading_sheet).is_file():
+        b.errors.append(f"{t.id}: grading sheet {t.grading_sheet} not found")
+    if t.grader and not (t.dir / t.grader).is_file():
+        b.errors.append(f"{t.id}: grader {t.grader} not found")
+    fixture = t.dir / t.fixture
+    if not fixture.is_dir() or not any(p.name != ".gitkeep" for p in fixture.iterdir()):
+        b.warnings.append(f"{t.id}: empty fixture")

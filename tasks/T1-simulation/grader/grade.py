@@ -73,12 +73,10 @@ string.h time.h
 FORBIDDEN_CMAKE = re.compile(r"\b(find_package|FetchContent\w*|ExternalProject\w*|pkg_check_modules|"
                              r"target_link_libraries|add_subdirectory|file\s*\(\s*DOWNLOAD)\b", re.I)
 
-def _script() -> str:
-    """The shell script run in the sandbox. Its working directory is the agent's workspace."""
+def _build_steps() -> list[str]:
+    """Steps 1 to 4: the builds, after the lines that write the compilers forced on two of them."""
     warn, asan = cpp_metrics.compiler("warn", "-Wall -Wextra"), cpp_metrics.compiler("asan", SANITIZERS)
-    lines = [
-        "G=.grade",
-        "mkdir -p $G/out $G/asan-out $G/invalid-out $G/cli",
+    return [
         warn[0],
         asan[0],
         # 1. the imposed build
@@ -91,6 +89,12 @@ def _script() -> str:
         " > $G/asan.log 2>&1; echo $? > $G/asan.rc",
         # 4. strict warnings and clang-tidy, for the code metrics
         *cpp_metrics.sandbox_script(),
+    ]
+
+
+def _run_steps() -> list[str]:
+    """Steps 5 to 7: the agent's program on every input, each run with its time and memory limit."""
+    lines = [
         "SIM=build/sim",
         # 5. hidden scenarios, then the same under the sanitizers
         "for f in $G/scenarios/*.txt; do n=$(basename $f .txt);"
@@ -110,6 +114,12 @@ def _script() -> str:
         lines.append(f"(ulimit -v {MEMORY_KB}; timeout 5 $SIM {args} 2> $G/cli/{name}.err); echo $? > $G/cli/{name}.rc")
     lines.append(f"(ulimit -v {MEMORY_KB}; timeout 10 $SIM --scenario examples/basic.txt --out $G/example.out"
                  " 2> $G/example.err); echo $? > $G/example.rc")
+    return lines
+
+
+def _script() -> str:
+    """The shell script run in the sandbox. Its working directory is the agent's workspace."""
+    lines = ["G=.grade", "mkdir -p $G/out $G/asan-out $G/invalid-out $G/cli", *_build_steps(), *_run_steps()]
     return "\n".join(lines) + "\n"
 
 
@@ -133,6 +143,15 @@ def _split(text: str) -> tuple[list[str], list[str], str]:
     return stops, passengers, summary
 
 
+def _averages_match(x: str, y: str) -> bool:
+    try:
+        if abs(float(x) - float(y)) > 0.0101:
+            return False
+    except ValueError:
+        return False
+    return True
+
+
 def summary_matches(expected: str, got: str) -> bool:
     """Same summary, the averages within 0.01 (rounding of the last digit)."""
     a, b = expected.split(), got.split()
@@ -142,13 +161,7 @@ def summary_matches(expected: str, got: str) -> bool:
     if len(a) != len(b) or a[::2] != b[::2]:
         return False
     for key, x, y in zip(a[::2], a[1::2], b[1::2]):
-        if key.startswith("avg_"):
-            try:
-                if abs(float(x) - float(y)) > 0.0101:
-                    return False
-            except ValueError:
-                return False
-        elif x != y:
+        if not (_averages_match(x, y) if key.startswith("avg_") else x == y):
             return False
     return True
 
@@ -222,19 +235,17 @@ def _sheet(built: bool, scores: dict, figures: dict) -> dict:
     }
 
 
-def grade(tree: Path) -> dict:
-    g = tree / ".grade"
-    _stage_inputs(g)
+def _sandbox(tree: Path) -> str:
+    """Runs the script in the sandbox: the end of its output, for the details."""
     try:
         run = sandbox_exec(_script(), tree, timeout_s=1200)
-        sandbox_log = (run.stdout + run.stderr)[-4000:]
+        return (run.stdout + run.stderr)[-4000:]
     except subprocess.TimeoutExpired:
-        sandbox_log = "grading timed out"
+        return "grading timed out"
 
-    built = _rc(g / "build.rc") == 0 and (tree / "build" / "sim").is_file()
-    warnings = len(re.findall(r": warning: ", _read(g / "warn.log")))
-    sources = cpp_metrics.sources(tree)
 
+def _scenario_results(g: Path, built: bool) -> tuple[dict, list[bool], int]:
+    """Each hidden scenario's score, whether each run exited cleanly, and how many runs the sanitizers found clean."""
     scenarios, survived, asan_clean = {}, [], 0
     for f in SCENARIOS:
         n = f.stem
@@ -245,49 +256,85 @@ def grade(tree: Path) -> dict:
             else {"score": 0.0, "rc": rc, "stderr": _read(g / "out" / f"{n}.err")[:300]}
         asan_err = _read(g / "asan-out" / f"{n}.err")
         asan_clean += "Sanitizer" not in asan_err and "runtime error" not in asan_err
-    correctness = sum(s["score"] for s in scenarios.values()) / len(scenarios)
+    return scenarios, survived, asan_clean
 
+
+def _perf_run(g: Path, built: bool) -> tuple[str, dict]:
+    """The exit code of the run on 200,000 passengers, and its figures: time, right summary, peak RAM."""
     perf_rc, perf_ms, perf_kib = (_read(g / "perf.result").split() + ["?", "?", "?"])[:3]
-    perf_ok = built and perf_rc == "0" and summary_matches(PERF_SUMMARY, _split(_read(g / "perf.out"))[2])
+    return perf_rc, {
+        "perf_ms": int(perf_ms) if perf_rc == "0" and perf_ms.isdigit() else None,
+        "perf_summary_ok": built and perf_rc == "0" and summary_matches(PERF_SUMMARY, _split(_read(g / "perf.out"))[2]),
+        "peak_ram_mb": round(int(perf_kib) / 1024, 1) if perf_rc == "0" and perf_kib.isdigit() else None,
+    }
+
+
+def _errors_handled(g: Path) -> tuple[dict, dict]:
+    """For each invalid input, then each command-line error, whether the program reported it as asked."""
     invalid = {f.stem: _handled(g / "invalid-out" / f"{f.stem}.rc", g / "invalid-out" / f"{f.stem}.err") for f in INVALID}
     cli_errors = {name: _handled(g / "cli" / f"{name}.rc", g / "cli" / f"{name}.err") for name in CLI_ERRORS}
-    robustness = [*invalid.values(), *cli_errors.values(), *survived, perf_rc == "0"]
+    return invalid, cli_errors
+
+
+def _output_format_ok(g: Path, built: bool) -> bool:
+    """The statement's example runs, and each line of its output has the statement's format."""
     example = _read(g / "example.out").splitlines()
-    cli_ok = built and _rc(g / "example.rc") == 0 and bool(example) and SUMMARY_LINE.fullmatch(example[-1]) is not None \
+    return built and _rc(g / "example.rc") == 0 and bool(example) and SUMMARY_LINE.fullmatch(example[-1]) is not None \
         and all(STOP_LINE.fullmatch(x) or PASSENGER_LINE.fullmatch(x) for x in example[:-1])
 
-    figures = {
+
+def _figures(tree: Path, g: Path, scenarios: dict, asan_clean: int, perf: dict) -> dict:
+    warnings = len(re.findall(r": warning: ", _read(g / "warn.log")))
+    return {
         "exact_scenarios": f"{sum(s.get('exact', False) for s in scenarios.values())}/{len(SCENARIOS)}",
-        "perf_ms": int(perf_ms) if perf_rc == "0" and perf_ms.isdigit() else None,
-        "perf_summary_ok": perf_ok,
-        "peak_ram_mb": round(int(perf_kib) / 1024, 1) if perf_rc == "0" and perf_kib.isdigit() else None,
+        **perf,
         "warnings": warnings if _rc(g / "warn.rc") == 0 else None,
         "sanitizer_clean": f"{asan_clean}/{len(SCENARIOS)}" if _rc(g / "asan.rc") == 0 else "no sanitizer build",
         "code": cpp_metrics.measure(tree, g, created_files(tree, FIXTURE)),
     }
-    scores = {"statement": round(10 * correctness, 1) if built else 0.0,
-              "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0,
-              **resource_scores(figures)}
+
+
+def _scores(built: bool, scenarios: dict, robustness: list[bool], figures: dict) -> dict:
+    correctness = sum(s["score"] for s in scenarios.values()) / len(scenarios)
+    return {"statement": round(10 * correctness, 1) if built else 0.0,
+            "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0,
+            **resource_scores(figures)}
+
+
+def _checks(tree: Path, g: Path, sources: list[Path], built: bool, figures: dict) -> dict:
+    perf_ms = figures["perf_ms"]
+    return {
+        "builds": built,
+        "stdlib-only": not FORBIDDEN_CMAKE.search(_read(tree / "CMakeLists.txt")) and not _includes(tree, sources),
+        "no-warnings": figures["warnings"] == 0,   # None without the -Wall -Wextra build
+        "output-format": _output_format_ok(g, built),
+        "under-one-second": figures["perf_summary_ok"] and perf_ms is not None and perf_ms <= PERF_LIMIT_MS,
+    }
+
+
+def grade(tree: Path) -> dict:
+    g = tree / ".grade"
+    _stage_inputs(g)
+    sandbox_log = _sandbox(tree)
+    built = _rc(g / "build.rc") == 0 and (tree / "build" / "sim").is_file()
+    sources = cpp_metrics.sources(tree)
+    scenarios, survived, asan_clean = _scenario_results(g, built)
+    perf_rc, perf = _perf_run(g, built)
+    invalid, cli_errors = _errors_handled(g)
+    robustness = [*invalid.values(), *cli_errors.values(), *survived, perf_rc == "0"]
+    figures = _figures(tree, g, scenarios, asan_clean, perf)
+    scores = _scores(built, scenarios, robustness, figures)
     return {
         "scores": scores,
-        "checks": {
-            "builds": built,
-            "stdlib-only": not FORBIDDEN_CMAKE.search(_read(tree / "CMakeLists.txt")) and not _includes(tree, sources),
-            "no-warnings": _rc(g / "warn.rc") == 0 and warnings == 0,
-            "output-format": cli_ok,
-            "under-one-second": perf_ok and figures["perf_ms"] is not None and figures["perf_ms"] <= PERF_LIMIT_MS,
-        },
+        "checks": _checks(tree, g, sources, built, figures),
         "figures": figures,
         "sheet": _sheet(built, scores, figures),
         "details": {
-            "scenarios": scenarios,
-            "invalid_input": invalid,
-            "cli_errors": cli_errors,
+            "scenarios": scenarios, "invalid_input": invalid, "cli_errors": cli_errors,
             "perf": {"rc": perf_rc, "stderr": _read(g / "perf.err")[-500:]},
             "foreign_includes": _includes(tree, sources),
             "source_files": [s.relative_to(tree).as_posix() for s in sources],
-            "build_log": _read(g / "build.log")[-2000:],
-            "sandbox_log": sandbox_log,
+            "build_log": _read(g / "build.log")[-2000:], "sandbox_log": sandbox_log,
         },
     }
 

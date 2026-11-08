@@ -53,9 +53,27 @@ def _int(token: str, line: int) -> int:
     return value
 
 
-def parse(text: str) -> Scenario:
-    header: dict[str, int] = {}
-    start: list[int] | None = None
+def _setting(key: str, values: list[int], n: int, settings: dict[str, list[int]],
+             passengers: list[Passenger]) -> None:
+    """Checks a header or start line on its own and keeps its values in `settings`."""
+    if passengers:
+        raise InputError(f"line {n}: {key} after a passenger line")
+    if key in settings:
+        raise InputError(f"line {n}: repeated {key}")
+    if key != "start" and len(values) != 1:
+        raise InputError(f"line {n}: {key} takes one value")
+    settings[key] = values
+
+
+def _passenger(values: list[int], n: int) -> Passenger:
+    if len(values) != 4:
+        raise InputError(f"line {n}: passenger takes four values")
+    return Passenger(*values)
+
+
+def _directives(text: str) -> tuple[dict[str, list[int]], list[Passenger]]:
+    """The header and start values by key, and the passengers in file order: each line checked on its own."""
+    settings: dict[str, list[int]] = {}
     passengers: list[Passenger] = []
     for n, raw in enumerate(text.splitlines(), 1):
         tokens = raw.split("#", 1)[0].split()
@@ -63,28 +81,24 @@ def parse(text: str) -> Scenario:
             continue
         key, values = tokens[0], [_int(t, n) for t in tokens[1:]]
         if key in HEADER or key == "start":
-            if passengers:
-                raise InputError(f"line {n}: {key} after a passenger line")
-            if key in header or (key == "start" and start is not None):
-                raise InputError(f"line {n}: repeated {key}")
-            if key == "start":
-                start = values
-            elif len(values) != 1:
-                raise InputError(f"line {n}: {key} takes one value")
-            else:
-                header[key] = values[0]
+            _setting(key, values, n, settings, passengers)
         elif key == "passenger":
-            if len(values) != 4:
-                raise InputError(f"line {n}: passenger takes four values")
-            passengers.append(Passenger(*values))
+            passengers.append(_passenger(values, n))
         else:
             raise InputError(f"line {n}: unknown directive {key}")
-    if missing := [k for k in HEADER if k not in header]:
+    return settings, passengers
+
+
+def parse(text: str) -> Scenario:
+    settings, passengers = _directives(text)
+    if missing := [k for k in HEADER if k not in settings]:
         raise InputError(f"missing {', '.join(missing)}")
+    header = {k: settings[k][0] for k in HEADER}
     floors, elevators = header["floors"], header["elevators"]
     if not (2 <= floors <= 10**6 and 1 <= elevators <= 1000) \
             or not all(1 <= header[k] <= 10**6 for k in ("capacity", "travel", "door")):
         raise InputError("header value out of range")
+    start = settings.get("start")
     start = [0] * elevators if start is None else start
     if len(start) != elevators or any(not 0 <= f < floors for f in start):
         raise InputError("bad start")
@@ -112,40 +126,46 @@ def _cost(e: Elevator, s: int, floors: int) -> int:
     return abs(e.floor - s) + len(e.riders) + len(e.waiting) + (floors if behind else 0)
 
 
-def simulate(sc: Scenario) -> list[str]:
-    cars = [Elevator(f) for f in sc.start]
-    arrivals = sorted(sc.passengers, key=lambda p: (p.time, p.id))
-    ends: list[tuple[int, int]] = []   # (tick, elevator) of the actions under way
-    stops: list[str] = []
-    i = delivered = 0
+def _serve(e: Elevator, d: int, capacity: int) -> bool:
+    """Whether e stops on its floor going d: a rider gets out there, or a waiting one fits in."""
+    return any(p.dst == e.floor for p in e.riders) or (
+        len(e.riders) < capacity and any(p.src == e.floor and p.dir == d for p in e.waiting))
 
-    def serve(e: Elevator, d: int) -> bool:
-        return any(p.dst == e.floor for p in e.riders) or (
-            len(e.riders) < sc.capacity and any(p.src == e.floor and p.dir == d for p in e.waiting))
 
-    def ahead(e: Elevator, d: int) -> bool:
-        return any((p.dst - e.floor) * d > 0 for p in e.riders) or any((p.src - e.floor) * d > 0 for p in e.waiting)
+def _ahead(e: Elevator, d: int) -> bool:
+    """Whether a rider's destination or a waiting passenger's floor lies beyond e going d."""
+    return any((p.dst - e.floor) * d > 0 for p in e.riders) or any((p.src - e.floor) * d > 0 for p in e.waiting)
 
-    def stop(k: int, e: Elevator, t: int) -> None:
-        nonlocal delivered
-        out = sorted((p for p in e.riders if p.dst == e.floor), key=lambda p: p.id)
-        for p in out:
-            p.exit = t
-        e.riders = [p for p in e.riders if p.dst != e.floor]
-        delivered += len(out)
-        boarding = []
-        for p in e.waiting:
-            if p.src == e.floor and p.dir == e.dir and len(e.riders) < sc.capacity:
-                p.board = t
-                e.riders.append(p)
-                boarding.append(p)
-        e.waiting = [p for p in e.waiting if p.board < 0]
-        ids = lambda ps: ",".join(str(p.id) for p in ps) or "-"
-        stops.append(f"{t} {k} {e.floor} {'up' if e.dir == UP else 'down'} out={ids(out)} in={ids(boarding)}")
-        e.free, e.moving = False, False
-        heapq.heappush(ends, (t + sc.door, k))
 
-    def decide(k: int, e: Elevator, t: int) -> None:
+class _Simulation:
+    """The state of a run: the elevators, the actions under way and the stop lines written so far."""
+
+    def __init__(self, sc: Scenario):
+        self.sc = sc
+        self.cars = [Elevator(f) for f in sc.start]
+        self.ends: list[tuple[int, int]] = []   # (tick, elevator) of the actions under way
+        self.stops: list[str] = []
+        self.delivered = 0
+
+    def end_actions(self, t: int) -> set[int]:
+        """Ends the actions due at t: the elevators they free."""
+        ready: set[int] = set()
+        while self.ends and self.ends[0][0] == t:
+            _, k = heapq.heappop(self.ends)
+            e = self.cars[k]
+            if e.moving:
+                e.floor += e.dir
+            e.free = True
+            ready.add(k)
+        return ready
+
+    def assign(self, p: Passenger) -> int:
+        """Gives p to the cheapest elevator, the lowest number on a tie: that elevator."""
+        p.elevator = min(range(len(self.cars)), key=lambda k: (_cost(self.cars[k], p.src, self.sc.floors), k))
+        self.cars[p.elevator].waiting.append(p)
+        return p.elevator
+
+    def decide(self, k: int, e: Elevator, t: int) -> None:
         if not e.riders and not e.waiting:
             e.dir = IDLE
             return
@@ -153,46 +173,63 @@ def simulate(sc: Scenario) -> list[str]:
             here = [p for p in e.waiting if p.src == e.floor]
             first = here[0] if here else e.waiting[0]
             e.dir = first.dir if here else (UP if first.src > e.floor else DOWN)
-        if not serve(e, e.dir) and not ahead(e, e.dir):
+        if not _serve(e, e.dir, self.sc.capacity) and not _ahead(e, e.dir):
             e.dir = -e.dir
-        if serve(e, e.dir):
-            stop(k, e, t)
+        if _serve(e, e.dir, self.sc.capacity):
+            self._stop(k, e, t)
         else:
             e.free, e.moving = False, True
-            heapq.heappush(ends, (t + sc.travel, k))
+            heapq.heappush(self.ends, (t + self.sc.travel, k))
 
-    while delivered < len(arrivals):
-        t = min(([arrivals[i].time] if i < len(arrivals) else []) + ([ends[0][0]] if ends else []))
-        ready: set[int] = set()
-        while ends and ends[0][0] == t:
-            _, k = heapq.heappop(ends)
-            e = cars[k]
-            if e.moving:
-                e.floor += e.dir
-            e.free = True
-            ready.add(k)
-        while i < len(arrivals) and arrivals[i].time == t:
-            p = arrivals[i]
-            i += 1
-            p.elevator = min(range(len(cars)), key=lambda k: (_cost(cars[k], p.src, sc.floors), k))
-            cars[p.elevator].waiting.append(p)
-            ready.add(p.elevator)
-        # Only the elevators freed at t or given a passenger at t can act: the others are busy, or
-        # idle with nothing to do.
-        for k in sorted(ready):
-            if cars[k].free:
-                decide(k, cars[k], t)
+    def _stop(self, k: int, e: Elevator, t: int) -> None:
+        out = sorted((p for p in e.riders if p.dst == e.floor), key=lambda p: p.id)
+        for p in out:
+            p.exit = t
+        e.riders = [p for p in e.riders if p.dst != e.floor]
+        self.delivered += len(out)
+        boarding = []
+        for p in e.waiting:
+            if p.src == e.floor and p.dir == e.dir and len(e.riders) < self.sc.capacity:
+                p.board = t
+                e.riders.append(p)
+                boarding.append(p)
+        e.waiting = [p for p in e.waiting if p.board < 0]
+        ids = lambda ps: ",".join(str(p.id) for p in ps) or "-"
+        self.stops.append(f"{t} {k} {e.floor} {'up' if e.dir == UP else 'down'} out={ids(out)} in={ids(boarding)}")
+        e.free, e.moving = False, False
+        heapq.heappush(self.ends, (t + self.sc.door, k))
 
-    lines = stops + [f"passenger {p.id} elevator {p.elevator} wait {p.board - p.time} ride {p.exit - p.board}"
-                     for p in sorted(sc.passengers, key=lambda p: p.id)]
-    n = len(sc.passengers)
-    waits = [p.board - p.time for p in sc.passengers]
-    rides = [p.exit - p.board for p in sc.passengers]
-    makespan = max((p.exit for p in sc.passengers), default=0)
+
+def _report(passengers: list[Passenger]) -> list[str]:
+    """The passenger lines, by ID, then the summary line."""
+    lines = [f"passenger {p.id} elevator {p.elevator} wait {p.board - p.time} ride {p.exit - p.board}"
+             for p in sorted(passengers, key=lambda p: p.id)]
+    n = len(passengers)
+    waits = [p.board - p.time for p in passengers]
+    rides = [p.exit - p.board for p in passengers]
+    makespan = max((p.exit for p in passengers), default=0)
     avg = lambda xs: "%.2f" % (sum(xs) / n if n else 0.0)
     lines.append(f"summary passengers {n} makespan {makespan} avg_wait {avg(waits)} "
                  f"max_wait {max(waits, default=0)} avg_ride {avg(rides)}")
     return lines
+
+
+def simulate(sc: Scenario) -> list[str]:
+    sim = _Simulation(sc)
+    arrivals = sorted(sc.passengers, key=lambda p: (p.time, p.id))
+    i = 0
+    while sim.delivered < len(arrivals):
+        t = min(([arrivals[i].time] if i < len(arrivals) else []) + ([sim.ends[0][0]] if sim.ends else []))
+        ready = sim.end_actions(t)
+        while i < len(arrivals) and arrivals[i].time == t:
+            ready.add(sim.assign(arrivals[i]))
+            i += 1
+        # Only the elevators freed at t or given a passenger at t can act: the others are busy, or
+        # idle with nothing to do.
+        for k in sorted(ready):
+            if sim.cars[k].free:
+                sim.decide(k, sim.cars[k], t)
+    return sim.stops + _report(sc.passengers)
 
 
 def run(text: str) -> str:

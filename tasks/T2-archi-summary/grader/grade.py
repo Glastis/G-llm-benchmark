@@ -109,30 +109,31 @@ def _sheet(delivered: bool, scores: dict, form: dict, figures: dict) -> dict:
     }
 
 
-def grade(tree: Path, fixture: Path = FIXTURE) -> dict:
-    path = tree / DELIVERABLE
-    text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-    found = sections(text)
+def _form(text: str, found: list[tuple[str, str]], delivered: bool, edited: list[str]) -> dict:
+    """The form checks of the statement, by name."""
     titles = [_title(t) for t, _ in found]
     wanted = [s.lower() for s in SECTIONS]
     diagram_body = next((b for t, b in found if _title(t) == "diagram"), "")
-    corpus = Corpus(fixture)
-    refs = references(text)
-    missing = [r for r in refs if not corpus.has(r)]
-    edited = changed_files(tree, fixture) + created_files(tree, fixture, allowed=(DELIVERABLE,))
-    delivered = bool(text.strip())
-    form = {
+    return {
         "sections": [t for t in titles if t in wanted] == wanted,
         "word-limit": delivered and words(text) <= MAX_WORDS,
         "diagram": has_diagram(diagram_body),
         "no-code-edit": not edited,
     }
+
+
+def grade(tree: Path, fixture: Path = FIXTURE) -> dict:
+    path = tree / DELIVERABLE
+    text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+    found = sections(text)
+    corpus = Corpus(fixture)
+    refs = references(text)
+    missing = [r for r in refs if not corpus.has(r)]
+    edited = changed_files(tree, fixture) + created_files(tree, fixture, allowed=(DELIVERABLE,))
+    delivered = bool(text.strip())
+    form = _form(text, found, delivered, edited)
     scores = {"statement": round(10 * sum(form.values()) / len(form), 1) if delivered else 0.0}
-    figures = {
-        "words": words(text),
-        "references": len(refs),
-        "references_missing": len(missing),
-    }
+    figures = {"words": words(text), "references": len(refs), "references_missing": len(missing)}
     return {
         "scores": scores,
         "checks": {"delivered": delivered, **form},

@@ -160,24 +160,24 @@ def _sheet(delivered: bool, scores: dict, checks: dict, figures: dict) -> dict:
     }
 
 
-def grade(tree: Path) -> dict:
-    bugs = load_bugs()
-    comments, schema_errors, delivered = _review(tree)
-    m = match(comments, bugs)
-    s = score(len(bugs), len(m["found"]), len(m["unmatched"]))
-    severities = {b["id"]: (comments[m["found"][b["id"]]].get("severity"), b["severity"])
-                  for b in bugs if b["id"] in m["found"]}
-    edited = changed_files(tree, FIXTURE) + created_files(tree, FIXTURE, allowed=(DELIVERABLE,))
-    checks = {
+def _checks(comments: list[dict], schema_errors: list[str], edited: list[str]) -> dict:
+    """The checks of the statement, by name."""
+    return {
         "json-valid": not schema_errors,
         "no-code-edit": not edited,
         "severity-enum": bool(comments) and all(c.get("severity") in SEVERITIES for c in comments),
     }
+
+
+def _scores(s: dict, checks: dict, severities: dict[str, tuple[object, str]], delivered: bool) -> dict:
+    """The three scores, all 0 when review.json cannot be read."""
     scores = {"review": round(10 * s["f1"], 1), "statement": round(10 * sum(checks.values()) / len(checks), 1),
               "severity": severity_score(severities)}
-    if not delivered:
-        scores = dict.fromkeys(scores, 0.0)
-    figures = {
+    return scores if delivered else dict.fromkeys(scores, 0.0)
+
+
+def _figures(comments: list[dict], bugs: list[dict], m: dict, s: dict, severities: dict[str, tuple[object, str]]) -> dict:
+    return {
         **s,
         "found": f"{len(m['found'])}/{len(bugs)}",
         # A review that describes the bugs but cites the wrong lines shows up here.
@@ -186,6 +186,19 @@ def grade(tree: Path) -> dict:
         "duplicates": len(m["duplicates"]),
         "same_severity": f"{sum(got == want for got, want in severities.values())}/{len(severities)}",
     }
+
+
+def grade(tree: Path) -> dict:
+    bugs = load_bugs()
+    comments, schema_errors, delivered = _review(tree)
+    m = match(comments, bugs)
+    s = score(len(bugs), len(m["found"]), len(m["unmatched"]))
+    severities = {b["id"]: (comments[m["found"][b["id"]]].get("severity"), b["severity"])
+                  for b in bugs if b["id"] in m["found"]}
+    edited = changed_files(tree, FIXTURE) + created_files(tree, FIXTURE, allowed=(DELIVERABLE,))
+    checks = _checks(comments, schema_errors, edited)
+    scores = _scores(s, checks, severities, delivered)
+    figures = _figures(comments, bugs, m, s, severities)
     return {
         "scores": scores,
         "checks": checks,

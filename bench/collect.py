@@ -41,6 +41,36 @@ class StreamStats:
     rate_limit: dict | None = None
     result: dict | None = None
 
+    def take(self, event: dict, fallback_id: str) -> None:
+        kind = event.get("type")
+        if kind == "assistant":
+            self._take_message(event, fallback_id)
+        if kind == "user":
+            self._take_tool_results(event)
+        if kind == "rate_limit_event":
+            self.rate_limit = event.get("rate_limit_info")
+        if kind == "result":
+            self.result = event
+
+    def _take_message(self, event: dict, fallback_id: str) -> None:
+        msg = event.get("message") or {}
+        mid = msg.get("id") or fallback_id
+        usage = _usage(msg.get("usage") or {})
+        known = self.requests.get(mid)
+        if known is None or usage.output >= known[1].output:
+            self.requests[mid] = (msg.get("model") or "?", usage)
+            if msg.get("stop_reason"):
+                self.stop_reasons[mid] = msg["stop_reason"]
+        if known is None and event.get("parent_tool_use_id"):
+            self.subagent_messages += 1
+        self.tool_uses |= {b["id"] for b in msg.get("content") or [] if b.get("type") == "tool_use" and "id" in b}
+
+    def _take_tool_results(self, event: dict) -> None:
+        content = (event.get("message") or {}).get("content")
+        if isinstance(content, list):
+            self.tool_errors |= {b.get("tool_use_id") for b in content
+                                 if b.get("type") == "tool_result" and b.get("is_error")}
+
 
 def _usage(u: dict) -> Usage:
     split = u.get("cache_creation") or {}
@@ -58,33 +88,17 @@ def parse_stream(path: Path, s: StreamStats | None = None) -> StreamStats:
     Passing `s` merges several files, deduplicating messages across them."""
     s = s or StreamStats()
     for n, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines()):
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        kind = event.get("type")
-        if kind == "assistant":
-            msg = event.get("message") or {}
-            mid = msg.get("id") or f"{path.name}-no-id-{n}"
-            usage = _usage(msg.get("usage") or {})
-            known = s.requests.get(mid)
-            if known is None or usage.output >= known[1].output:
-                s.requests[mid] = (msg.get("model") or "?", usage)
-                if msg.get("stop_reason"):
-                    s.stop_reasons[mid] = msg["stop_reason"]
-            if known is None and event.get("parent_tool_use_id"):
-                s.subagent_messages += 1
-            s.tool_uses |= {b["id"] for b in msg.get("content") or [] if b.get("type") == "tool_use" and "id" in b}
-        elif kind == "user":
-            content = (event.get("message") or {}).get("content")
-            if isinstance(content, list):
-                s.tool_errors |= {b.get("tool_use_id") for b in content
-                                  if b.get("type") == "tool_result" and b.get("is_error")}
-        elif kind == "rate_limit_event":
-            s.rate_limit = event.get("rate_limit_info")
-        elif kind == "result":
-            s.result = event
+        event = _json(line)
+        if event is not None:
+            s.take(event, f"{path.name}-no-id-{n}")
     return s
+
+
+def _json(line: str):
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        return None
 
 
 def session_journals(run_dir: Path) -> list[Path]:
@@ -101,25 +115,52 @@ def metrics_for(run_dir: Path, bundle: Bundle) -> dict:
     c = bundle.contestants[record["contestant"]]
     side = strata_side(c, bundle)
     main = parse_stream(run_dir / "transcript.jsonl")
+    result = main.result or {}
     workers = sorted((run_dir / "workers").glob("*.jsonl")) if (run_dir / "workers").is_dir() else []
+    journals = session_journals(run_dir)
+    usage = _journal_usage(run_dir, journals, workers)
+    by_model, unpriced = _cost_by_model(usage, bundle.pricing, strata=side is not None)
+    reported = result.get("modelUsage") or {}
+    return {
+        "run_id": record["run_id"], "status": record["status"], "wall_s": record["wall_s"],
+        "duration_ms": result.get("duration_ms"), "turns": result.get("num_turns"),
+        **_activity(main, workers, journals),
+        "by_model": dict(by_model),
+        "usd_total": None if unpriced else round(sum(r["usd"] for r in by_model.values()), 6),
+        "gpu_energy_wh": energy_wh(run_dir / "energy.csv") if side else None,
+        "truncated_responses": sum(1 for reason in usage.stop_reasons.values() if reason == "max_tokens"),
+        "strata_server": strata_log_stats(run_dir / "strata-server.log"),
+        "subscription": _subscription(main.rate_limit),
+        "reported": {"model_usage": reported or None, "total_cost_usd": result.get("total_cost_usd")},
+        "warnings": _warnings(journals, unpriced, main)
+                    + _check_against_claude_code(by_model, reported, bundle.pricing, strata_main=c.backend == "strata"),
+    }
+
+
+def _journal_usage(run_dir: Path, journals: list[Path], workers: list[Path]) -> StreamStats:
+    """Usage from the session journals, or from the stream-json when there is none."""
+    usage = StreamStats()
+    for path in journals or [run_dir / "transcript.jsonl", *workers]:
+        parse_stream(path, usage)
+    return usage
+
+
+def _activity(main: StreamStats, workers: list[Path], journals: list[Path]) -> dict:
+    """Tool calls of the session and its workers, worker calls and subagent calls."""
     tool_uses, tool_errors = set(main.tool_uses), set(main.tool_errors)
     for path in workers:
         w = parse_stream(path)
         tool_uses |= {f"{path.stem}:{t}" for t in w.tool_uses}
         tool_errors |= {f"{path.stem}:{t}" for t in w.tool_errors}
-
-    warnings = []
-    usage = StreamStats()
-    journals = session_journals(run_dir)
-    for path in journals:
-        parse_stream(path, usage)
-    if not journals:
-        warnings.append("no session journal: usage taken from the stream-json, output tokens undercounted")
-        for path in [run_dir / "transcript.jsonl", *workers]:
-            parse_stream(path, usage)
     subagent_journals = [path for path in journals if "subagents" in path.parts]
     subagent_requests = set().union(*(parse_stream(path).requests for path in subagent_journals))
+    return {"tool_calls": len(tool_uses), "tool_errors": len(tool_errors), "worker_calls": len(workers),
+            "subagent_calls": len(subagent_journals) if journals else None,
+            "subagent_requests": len(subagent_requests) if journals else main.subagent_messages}
 
+
+def _cost_by_model(usage: StreamStats, pricing: Pricing, strata: bool) -> tuple[dict[str, dict], set[str]]:
+    """Tokens, requests and cost per model, and the models without a price."""
     by_model: dict[str, dict] = defaultdict(_empty_row)
     unpriced: set[str] = set()
     for model, u in usage.requests.values():
@@ -127,42 +168,32 @@ def metrics_for(run_dir: Path, bundle: Bundle) -> dict:
         for key in FIELDS:
             row[key] += getattr(u, key)
         row["requests"] += 1
-        # Strata reports its own model name (for example qwen…-coder-iq1_m): it is priced at $0.
-        price_as = model if model in bundle.pricing.models else (STRATA_PRICE if side else None)
-        try:
-            row["usd"] += request_cost(price_as or model, u, bundle.pricing)
-        except UnknownPrice:
+        if not _add_cost(row, model, u, pricing, strata):
             unpriced.add(model)
     for row in by_model.values():
         row["usd"] = round(row["usd"], 6)
+    return by_model, unpriced
 
+
+def _add_cost(row: dict, model: str, u: Usage, pricing: Pricing, strata: bool) -> bool:
+    # Strata reports its own model name (for example qwen…-coder-iq1_m): it is priced at $0.
+    price_as = model if model in pricing.models else (STRATA_PRICE if strata else None)
+    try:
+        row["usd"] += request_cost(price_as or model, u, pricing)
+    except UnknownPrice:
+        return False
+    return True
+
+
+def _warnings(journals: list[Path], unpriced: set[str], main: StreamStats) -> list[str]:
+    warnings = []
+    if not journals:
+        warnings.append("no session journal: usage taken from the stream-json, output tokens undercounted")
     if unpriced:
         warnings.append(f"models without a price (incomplete cost): {', '.join(sorted(unpriced))}")
     if main.result is None:
         warnings.append("no result event in the transcript")
-    reported = (main.result or {}).get("modelUsage") or {}
-    warnings += _check_against_claude_code(by_model, reported, bundle.pricing, strata_main=c.backend == "strata")
-
-    return {
-        "run_id": record["run_id"],
-        "status": record["status"],
-        "wall_s": record["wall_s"],
-        "duration_ms": (main.result or {}).get("duration_ms"),
-        "turns": (main.result or {}).get("num_turns"),
-        "tool_calls": len(tool_uses),
-        "tool_errors": len(tool_errors),
-        "worker_calls": len(workers),
-        "subagent_calls": len(subagent_journals) if journals else None,
-        "subagent_requests": len(subagent_requests) if journals else main.subagent_messages,
-        "by_model": dict(by_model),
-        "usd_total": None if unpriced else round(sum(r["usd"] for r in by_model.values()), 6),
-        "gpu_energy_wh": energy_wh(run_dir / "energy.csv") if side else None,
-        "truncated_responses": sum(1 for reason in usage.stop_reasons.values() if reason == "max_tokens"),
-        "strata_server": strata_log_stats(run_dir / "strata-server.log"),
-        "subscription": _subscription(main.rate_limit),
-        "reported": {"model_usage": reported or None, "total_cost_usd": (main.result or {}).get("total_cost_usd")},
-        "warnings": warnings,
-    }
+    return warnings
 
 
 TOKEN_CHECKS = {"input": "inputTokens", "output": "outputTokens", "cache_read": "cacheReadInputTokens",
@@ -204,27 +235,42 @@ def strata_log_stats(path: Path) -> dict | None:
     output cap)."""
     if not path.is_file():
         return None
-    responses, thinking, total, rates, reasons, budget_hits, cap = 0, 0, 0, [], {}, 0, None
-    current = 0
+    log = _StrataLog()
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if m := STRATA_THINKING.search(line):
-            current = int(m.group(1))
-            cap = int(m.group(2) or m.group(3))
-        elif "thinking budget reached" in line or "reached max tokens while still thinking" in line:
-            budget_hits += 1
-        elif m := STRATA_DONE.search(line):
-            responses += 1
-            thinking += current
-            total += int(m.group(1))
-            rates.append(float(m.group(2)))
-            reasons[m.group(3)] = reasons.get(m.group(3), 0) + 1
-            current = 0
-    if not responses:
+        log.take(line)
+    if not log.responses:
         return None
-    return {"responses": responses, "thinking_tokens": thinking, "total_tokens": total,
-            "thinking_share": round(thinking / total, 3) if total else None, "max_tokens": cap,
-            "finish_reasons": reasons, "thinking_cut": budget_hits,
-            "median_tok_s": statistics.median(rates)}
+    return {"responses": log.responses, "thinking_tokens": log.thinking, "total_tokens": log.total,
+            "thinking_share": round(log.thinking / log.total, 3) if log.total else None, "max_tokens": log.cap,
+            "finish_reasons": log.reasons, "thinking_cut": log.budget_hits,
+            "median_tok_s": statistics.median(log.rates)}
+
+
+@dataclass
+class _StrataLog:
+    responses: int = 0
+    thinking: int = 0
+    total: int = 0
+    rates: list[float] = field(default_factory=list)
+    reasons: dict[str, int] = field(default_factory=dict)
+    budget_hits: int = 0
+    cap: int | None = None
+    current: int = 0   # thinking tokens of the response under way
+
+    def take(self, line: str) -> None:
+        if m := STRATA_THINKING.search(line):
+            self.current, self.cap = int(m.group(1)), int(m.group(2) or m.group(3))
+            return
+        if "thinking budget reached" in line or "reached max tokens while still thinking" in line:
+            self.budget_hits += 1
+            return
+        if m := STRATA_DONE.search(line):
+            self.responses += 1
+            self.thinking += self.current
+            self.total += int(m.group(1))
+            self.rates.append(float(m.group(2)))
+            self.reasons[m.group(3)] = self.reasons.get(m.group(3), 0) + 1
+            self.current = 0
 
 
 def _subscription(info: dict | None) -> dict | None:

@@ -44,15 +44,22 @@ def sheet_scores(text: str) -> dict[str, float | str]:
         cells = [c.strip() for c in line.split("|")]
         if not line.startswith("|") or len(cells) < 4:
             scored = False
-        elif cells[2].startswith("Score"):
+            continue
+        if cells[2].startswith("Score"):
             scored = True
-        elif scored and not set(cells[1]) <= {"-"}:
-            value = MARKS.sub("", cells[2])
-            try:
-                scores[cells[1]] = NA if value == NA else float(value)
-            except ValueError:
-                scores[cells[1]] = BLANK
+            continue
+        if scored and not set(cells[1]) <= {"-"}:
+            scores[cells[1]] = _score(MARKS.sub("", cells[2]))
     return scores
+
+
+def _score(value: str) -> float | str:
+    if value == NA:
+        return NA
+    try:
+        return float(value)
+    except ValueError:
+        return BLANK
 
 
 def task_score(scores: dict[str, float | str]) -> float | None:
@@ -180,18 +187,9 @@ def chart(t: dict) -> str:
     if not order:
         return "<p class=note>No run graded on every criterion yet.</p>"
     y = {c: len(order) - 1 - i for i, c in enumerate(order)}
-    xs, ys, tips = [], [], []
-    for c in order:
-        done = [(rep, s) for rep, s in t["contestants"][c]["run_scores"].items() if s is not None]
-        step = min(0.12, 0.5 / max(len(done) - 1, 1))
-        for k, (rep, s) in enumerate(done):
-            xs.append(s)
-            ys.append(y[c] + step * (k - (len(done) - 1) / 2))
-            tips.append(f"{c} {rep}: {s:.1f}")
     st = [t["contestants"][c]["task_score"] for c in order]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=xs, y=ys, mode="markers", name="run", hovertext=tips, hoverinfo="text",
-                             marker={"size": 9, "color": RUN, "opacity": 0.8, "line": {"width": 2, "color": SURFACE}}))
+    fig.add_trace(_run_dots(t, order, y))
     fig.add_trace(go.Scatter(
         x=[s["mean"] for s in st], y=[y[c] for c in order], mode="markers", name="mean ± 95 % CI", hoverinfo="text",
         hovertext=[f"{c}: mean {num(s['mean'])}, CI {interval(s)}, median {num(s['median'])}, σ {num(s['sd'])}, n {s['n']}"
@@ -202,14 +200,33 @@ def chart(t: dict) -> str:
                  "arrayminus": [s["mean"] - s["ci"][0] if s["ci"] else 0 for s in st]}))
     fig.add_trace(go.Scatter(x=[s["median"] for s in st], y=[y[c] for c in order], mode="markers", name="median",
                              hoverinfo="skip", marker={"symbol": "line-ns", "size": 18, "line": {"width": 3, "color": MEDIAN}}))
-    fig.update_layout(
+    fig.update_layout(**_layout(order, y))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"displayModeBar": False})
+
+
+def _run_dots(t: dict, order: list[str], y: dict[str, int]):
+    """One dot per graded run, spread around its contestant's row."""
+    import plotly.graph_objects as go
+
+    xs, ys, tips = [], [], []
+    for c in order:
+        done = [(rep, s) for rep, s in t["contestants"][c]["run_scores"].items() if s is not None]
+        step = min(0.12, 0.5 / max(len(done) - 1, 1))
+        xs += [s for _, s in done]
+        ys += [y[c] + step * (k - (len(done) - 1) / 2) for k in range(len(done))]
+        tips += [f"{c} {rep}: {s:.1f}" for rep, s in done]
+    return go.Scatter(x=xs, y=ys, mode="markers", name="run", hovertext=tips, hoverinfo="text",
+                      marker={"size": 9, "color": RUN, "opacity": 0.8, "line": {"width": 2, "color": SURFACE}})
+
+
+def _layout(order: list[str], y: dict[str, int]) -> dict:
+    return dict(
         height=ROW_PX * len(order) + 110, margin={"l": 10, "r": 10, "t": 40, "b": 50},
         paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font={"family": "system-ui, sans-serif", "color": MUTED, "size": 13},
         legend={"orientation": "h", "x": 0, "y": 1, "yanchor": "bottom"},
         xaxis={"title": "Task score /10", "range": [-0.3, 10.3], "dtick": 1, "gridcolor": GRID, "zeroline": False},
         yaxis={"tickvals": list(y.values()), "ticktext": order, "range": [-0.6, len(order) - 0.4],
                "showgrid": False, "zeroline": False, "tickfont": {"color": INK}})
-    return fig.to_html(full_html=False, include_plotlyjs=False, config={"displayModeBar": False})
 
 
 def ranking(r: dict | None) -> str:

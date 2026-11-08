@@ -53,18 +53,29 @@ SANITIZER = re.compile(r"Sanitizer|runtime error")
 
 def _script() -> str:
     """The shell script run in the sandbox. Its working directory is the agent's workspace."""
-    asan = cpp_metrics.compiler("asan", "-fsanitize=address,undefined -fno-omit-frame-pointer")
-    fuzz_env = f"ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0:hard_rss_limit_mb=2048 LD_PRELOAD=$PWD/$G/fuzz.so"
     return "\n".join([
         "G=.grade",
         "export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy",
         "mkdir -p $G/out $G/shots",
-        # 1. the imposed build, a sanitizer build, then strict warnings and clang-tidy
+        *_build_lines(),       # 1. the imposed build, a sanitizer build, then strict warnings and clang-tidy
+        *_test_mode_lines(),   # 2. the test mode: a probe, then the hidden scenarios and the screenshots
+        *_fuzz_lines(),        # 3. random input in the sanitizer build
+        *_timing_lines(),      # 4. the delay from an input to the next frame, in the imposed build, then the idle game
+    ]) + "\n"
+
+
+def _build_lines() -> list[str]:
+    asan = cpp_metrics.compiler("asan", "-fsanitize=address,undefined -fno-omit-frame-pointer")
+    return [
         "{ cmake -B build -G Ninja && cmake --build build; } > $G/build.log 2>&1; echo $? > $G/build.rc",
         asan[0],
         f"{{ cmake -B $G/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug {asan[1]} && cmake --build $G/asan; }} > $G/asan.log 2>&1",
         *cpp_metrics.sandbox_script(),
-        # 2. the test mode: a probe, then the hidden scenarios and the screenshots
+    ]
+
+
+def _test_mode_lines() -> list[str]:
+    return [
         "timeout 10 build/city --script $G/probe.txt --out $G/out/probe.out > /dev/null 2> $G/out/probe.err;"
         " echo $? > $G/out/probe.rc",
         "if [ -s $G/out/probe.out ]; then",
@@ -72,18 +83,27 @@ def _script() -> str:
         "    timeout 30 build/city --script $f --out $G/out/$n.out > /dev/null 2> $G/out/$n.err; echo $? > $G/out/$n.rc;"
         "  done",
         "fi",
-        # 3. random input in the sanitizer build
+    ]
+
+
+def _fuzz_lines() -> list[str]:
+    fuzz_env = f"ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0:hard_rss_limit_mb=2048 LD_PRELOAD=$PWD/$G/fuzz.so"
+    return [
         "gcc -shared -fPIC -O1 $G/fuzz.c -o $G/fuzz.so $(pkg-config --cflags --libs sdl2) -ldl > $G/fuzz-build.log 2>&1",
         f"for s in {' '.join(map(str, FUZZ_SEEDS))}; do",
         f"  env {fuzz_env} FUZZ_SEED=$s FUZZ_MS={FUZZ_MS} timeout {FUZZ_MS // 1000 + 30} $G/asan/city"
         "   > /dev/null 2> $G/out/fuzz$s.err; echo $? > $G/out/fuzz$s.rc;",
         "done",
-        # 4. the delay from an input to the next frame, in the imposed build, then the idle game
+    ]
+
+
+def _timing_lines() -> list[str]:
+    return [
         f"env LD_PRELOAD=$PWD/$G/fuzz.so FUZZ_SEED={LATENCY_SEED} FUZZ_MS={LATENCY_MS} FUZZ_LATENCY=$G/out/latency.txt"
         f" timeout {LATENCY_MS // 1000 + 30} build/city > /dev/null 2> $G/out/latency.err; echo $? > $G/out/latency.rc",
         f"python3 $G/measure.py {IDLE_MS // 1000 + 20} $G/out/idle.err env LD_PRELOAD=$PWD/$G/fuzz.so FUZZ_IDLE=1"
         f" FUZZ_MS={IDLE_MS} build/city > $G/out/idle.result",
-    ]) + "\n"
+    ]
 
 
 def _read(path: Path) -> str:
@@ -174,72 +194,99 @@ def _sheet(built: bool, scores: dict, figures: dict, tile_ok: dict) -> dict:
     }
 
 
-def grade(tree: Path) -> dict:
-    g = tree / ".grade"
-    scenarios = hidden_scenarios()
-    shots, starts = showcase.script()
-    _stage_inputs(g, scenarios, shots)
+def _run_script(tree: Path) -> str:
+    """Runs `_script` in the sandbox. Returns the end of its output, for the report."""
     try:
         run = sandbox_exec(_script(), tree, timeout_s=3600)
-        sandbox_log = (run.stdout + run.stderr)[-4000:]
+        return (run.stdout + run.stderr)[-4000:]
     except subprocess.TimeoutExpired:
-        sandbox_log = "grading timed out"
+        return "grading timed out"
 
-    built = _rc(g / "build.rc") == 0 and (tree / "build" / "city").is_file()
-    test_mode = built and bool(_read(g / "out" / "probe.out").strip())
+
+def _test_mode_runs(g: Path, scenarios: dict[str, list[list]], shots: list[list]) -> tuple[dict, list[bool], list[str]]:
+    """The hidden scenarios against the oracle, then whether each test-mode run, the showcase too, ended
+    by itself, and its stderr."""
     results, ended, stderr = {}, [], []
-    for name, actions in {**scenarios, "showcase": shots}.items() if test_mode else ():
+    for name, actions in {**scenarios, "showcase": shots}.items():
         got = _read(g / "out" / f"{name}.out").splitlines()
         stderr.append(_read(g / "out" / f"{name}.err"))
         ended.append(_rc(g / "out" / f"{name}.rc") == 0)
         if name != "showcase":
             want = expected(actions)
             results[name] = {"match": round(match(want, got), 4), "exact": want == got, "rc": _rc(g / "out" / f"{name}.rc")}
-    fuzz = {}
+    return results, ended, stderr
+
+
+def _fuzz_runs(g: Path) -> tuple[dict, list[str]]:
+    """Each random-input run, by seed, and their whole stderr."""
+    fuzz, stderr = {}, []
     for seed in FUZZ_SEEDS:
         err, rc = _read(g / "out" / f"fuzz{seed}.err"), _rc(g / "out" / f"fuzz{seed}.rc")
         stderr.append(err)
         fuzz[seed] = {"rc": rc, "clean": rc == 0 and not SANITIZER.search(err), "quits": rc not in (None, 124),
                       "stderr": err[:300]}
+    return fuzz, stderr
+
+
+def _idle(g: Path) -> dict:
+    """What measure.py wrote of the idle game: "<exit code or timeout> <ms> <peak RSS in KiB> <CPU ms>"."""
     idle_rc, idle_ms, idle_kib, idle_cpu = (_read(g / "out" / "idle.result").split() + ["?"] * 4)[:4]
+    return {"cpu_percent": round(100 * int(idle_cpu) / int(idle_ms)) if idle_ms.isdigit() and idle_cpu.isdigit() and int(idle_ms) else None,
+            "peak_ram_mb": round(int(idle_kib) / 1024, 1) if idle_kib.isdigit() else None, "rc": idle_rc}
+
+
+def _figures(tree: Path, g: Path, results: dict, scenarios: int, fuzz: dict, idle: dict, tiles: dict) -> dict:
+    return {
+        "exact_scenarios": f"{sum(r['exact'] for r in results.values())}/{scenarios}",
+        "fuzz_clean": f"{sum(f['clean'] for f in fuzz.values())}/{len(fuzz)}",
+        "idle": idle,
+        "latency": {**latency(_read(g / "out" / "latency.txt")), "rc": _rc(g / "out" / "latency.rc")},
+        "tiles": tiles,
+        "code": cpp_metrics.measure(tree, g, created_files(tree, FIXTURE)),
+    }
+
+
+def _scores(built: bool, test_mode: bool, results: dict, scenarios: int, robustness: list[bool], figures: dict) -> dict:
+    return {"statement": round(10 * sum(r["match"] for r in results.values()) / scenarios, 1) if test_mode else 0.0,
+            "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0,
+            **(resource_scores(figures) if built else {"performance": 0.0, "resources": 0.0})}
+
+
+def _details(tree: Path, g: Path, sources: list[Path], results: dict, fuzz: dict, stderr: list[str],
+             sandbox_log: str) -> dict:
+    return {
+        "scenarios": results,
+        "fuzz": fuzz,
+        "stderr": [e[:300] for e in stderr if e.strip()][:5],
+        "source_files": [s.relative_to(tree).as_posix() for s in sources],
+        "build_log": _read(g / "build.log")[-2000:],
+        "sandbox_log": sandbox_log,
+    }
+
+
+def grade(tree: Path) -> dict:
+    g = tree / ".grade"
+    scenarios = hidden_scenarios()
+    shots, starts = showcase.script()
+    _stage_inputs(g, scenarios, shots)
+    sandbox_log = _run_script(tree)
+    built = _rc(g / "build.rc") == 0 and (tree / "build" / "city").is_file()
+    test_mode = built and bool(_read(g / "out" / "probe.out").strip())
+    results, ended, stderr = _test_mode_runs(g, scenarios, shots) if test_mode else ({}, [], [])
+    fuzz, fuzz_stderr = _fuzz_runs(g)
+    stderr += fuzz_stderr
+    idle = _idle(g)
     silent = built and not any(e.strip() for e in stderr)
     robustness = ended + [f["clean"] for f in fuzz.values()] + [f["quits"] for f in fuzz.values()] + [silent]
     tile_ok, tile_figures = _tiles(g, shots, starts) if test_mode else ({"tiles-used": False}, {"error": "no test mode"})
-
-    figures = {
-        "exact_scenarios": f"{sum(r['exact'] for r in results.values())}/{len(scenarios)}",
-        "fuzz_clean": f"{sum(f['clean'] for f in fuzz.values())}/{len(fuzz)}",
-        "idle": {"cpu_percent": round(100 * int(idle_cpu) / int(idle_ms)) if idle_ms.isdigit() and idle_cpu.isdigit() and int(idle_ms) else None,
-                 "peak_ram_mb": round(int(idle_kib) / 1024, 1) if idle_kib.isdigit() else None, "rc": idle_rc},
-        "latency": {**latency(_read(g / "out" / "latency.txt")), "rc": _rc(g / "out" / "latency.rc")},
-        "tiles": tile_figures,
-        "code": cpp_metrics.measure(tree, g, created_files(tree, FIXTURE)),
-    }
-    scores = {"statement": round(10 * sum(r["match"] for r in results.values()) / len(scenarios), 1) if test_mode else 0.0,
-              "working": round(10 * sum(robustness) / len(robustness), 1) if built else 0.0,
-              **(resource_scores(figures) if built else {"performance": 0.0, "resources": 0.0})}
+    figures = _figures(tree, g, results, len(scenarios), fuzz, idle, tile_figures)
+    scores = _scores(built, test_mode, results, len(scenarios), robustness, figures)
     sources = cpp_metrics.sources(tree)
-    return {
-        "scores": scores,
-        "checks": {
-            "builds": built,
-            "sdl2-libpng-only": not any(FORBIDDEN_INCLUDES.search(_read(s)) for s in sources),
-            "test-mode": test_mode,
-            "silent": silent,
-            **tile_ok,
-        },
-        "figures": figures,
-        "sheet": _sheet(built, scores, figures, tile_ok),
-        "attachments": [f".grade/shots/{name}.png" for name in showcase.SCENES],
-        "details": {
-            "scenarios": results,
-            "fuzz": fuzz,
-            "stderr": [e[:300] for e in stderr if e.strip()][:5],
-            "source_files": [s.relative_to(tree).as_posix() for s in sources],
-            "build_log": _read(g / "build.log")[-2000:],
-            "sandbox_log": sandbox_log,
-        },
-    }
+    checks = {"builds": built, "sdl2-libpng-only": not any(FORBIDDEN_INCLUDES.search(_read(s)) for s in sources),
+              "test-mode": test_mode, "silent": silent, **tile_ok}
+    return {"scores": scores, "checks": checks, "figures": figures, "sheet": _sheet(built, scores, figures, tile_ok),
+            "attachments": [f".grade/shots/{name}.png" for name in showcase.SCENES],
+            "details": _details(tree, g, sources, results, fuzz, stderr, sandbox_log)}
 
 
 if __name__ == "__main__":

@@ -85,34 +85,43 @@ def smoke(
     """Targeted phase-1 smoke tests (ARCHITECTURE §9). Without arguments, lists them and launches nothing."""
     b = smoke_lib.smoke_bundle(load_all())
     if not checks:
-        for check in smoke_lib.CHECKS:
-            specs = smoke_lib.plan([check.id], b)
-            done = sum(status_of(paths_for(s)) in FINAL for s in specs)
-            runs = f"{done}/{len(specs)} runs done" if specs else "no run, reads existing transcripts"
-            typer.echo(f"#{check.number}  {check.id:<16} {check.title}  ({runs})")
-        typer.echo("\nbench smoke <id>… launches the missing runs; bench smoke all --report only recomputes the verdicts.")
+        _list_smoke_checks(b)
         return
     ids = [c.id for c in smoke_lib.CHECKS] if checks == ["all"] else checks
     if unknown := [c for c in ids if c not in smoke_lib.BY_ID]:
         raise typer.BadParameter(f"unknown checks: {', '.join(unknown)}")
     if not report_only:
-        todo = [s for s in smoke_lib.plan(ids, b) if status_of(paths_for(s)) not in FINAL]
-        if todo:
-            typer.echo(f"{len(todo)} run(s) to launch, that is real agents on the subscription or on Strata:")
-            for s in todo:
-                typer.echo(f"  {s.run_id}")
-            if not yes and not typer.confirm("Launch?", default=False):
-                raise typer.Exit(1)
-            try:
-                smoke_lib.run(ids, b, echo=typer.echo)
-            except (QuotaReached, NotLoggedIn, NotServing, RunError) as e:
-                typer.echo(f"stopped: {e}", err=True)
-                raise typer.Exit(3)
+        _launch_smoke_runs(ids, b, yes)
     for cid, verdict in smoke_lib.report(ids, b).items():
         check = smoke_lib.BY_ID[cid]
         typer.echo(f"\n#{check.number} {check.title}: {verdict.status}")
         for line in verdict.lines:
             typer.echo(f"  {line}")
+
+
+def _list_smoke_checks(b) -> None:
+    for check in smoke_lib.CHECKS:
+        specs = smoke_lib.plan([check.id], b)
+        done = sum(status_of(paths_for(s)) in FINAL for s in specs)
+        runs = f"{done}/{len(specs)} runs done" if specs else "no run, reads existing transcripts"
+        typer.echo(f"#{check.number}  {check.id:<16} {check.title}  ({runs})")
+    typer.echo("\nbench smoke <id>… launches the missing runs; bench smoke all --report only recomputes the verdicts.")
+
+
+def _launch_smoke_runs(ids: list[str], b, yes: bool) -> None:
+    todo = [s for s in smoke_lib.plan(ids, b) if status_of(paths_for(s)) not in FINAL]
+    if not todo:
+        return
+    typer.echo(f"{len(todo)} run(s) to launch, that is real agents on the subscription or on Strata:")
+    for s in todo:
+        typer.echo(f"  {s.run_id}")
+    if not yes and not typer.confirm("Launch?", default=False):
+        raise typer.Exit(1)
+    try:
+        smoke_lib.run(ids, b, echo=typer.echo)
+    except (QuotaReached, NotLoggedIn, NotServing, RunError) as e:
+        typer.echo(f"stopped: {e}", err=True)
+        raise typer.Exit(3)
 
 
 @app.command()
